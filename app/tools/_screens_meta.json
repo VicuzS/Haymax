@@ -1,0 +1,423 @@
+{
+ "screens": [
+  {
+   "id": "ACC-01",
+   "name": "Splash",
+   "chrome": "off",
+   "tab": null,
+   "hasFab": false,
+   "items": 2
+  },
+  {
+   "id": "ACC-02",
+   "name": "Iniciar sesión / Registrarse",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 9
+  },
+  {
+   "id": "ACC-03",
+   "name": "Onboarding: bienvenida y permisos",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 9
+  },
+  {
+   "id": "ACC-04",
+   "name": "Configuración inicial: distrito e integrantes",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 12
+  },
+  {
+   "id": "INI-01",
+   "name": "Inicio: plato planeado hoy",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": true,
+   "items": 14
+  },
+  {
+   "id": "INI-02",
+   "name": "Inicio: estado vacío (primera vez)",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": false,
+   "items": 7
+  },
+  {
+   "id": "INI-03",
+   "name": "Recetas cerca de ti (por distrito)",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": false,
+   "items": 4
+  },
+  {
+   "id": "REC-01",
+   "name": "¿Qué puedo cocinar? (motor)",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": true,
+   "items": 9
+  },
+  {
+   "id": "REC-02",
+   "name": "Detalle de receta",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": false,
+   "items": 13
+  },
+  {
+   "id": "DES-01",
+   "name": "Mi Despensa",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": true,
+   "items": 8
+  },
+  {
+   "id": "DES-02",
+   "name": "Detalle de insumo: editar o eliminar",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 8
+  },
+  {
+   "id": "DES-03",
+   "name": "Agregar insumos: opciones",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 5
+  },
+  {
+   "id": "DES-04",
+   "name": "Cámara de escaneo (boleta o lista)",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 5
+  },
+  {
+   "id": "DES-05",
+   "name": "Revisión del escaneo",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 10
+  },
+  {
+   "id": "DES-06",
+   "name": "Alta manual: Paso 1, producto y cantidad",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 7
+  },
+  {
+   "id": "DES-07",
+   "name": "Alta manual: Paso 2, revisar y confirmar",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 8
+  },
+  {
+   "id": "DES-08",
+   "name": "Insumos agregados (confirmación)",
+   "chrome": "normal",
+   "tab": 1,
+   "hasFab": false,
+   "items": 7
+  },
+  {
+   "id": "PLA-01",
+   "name": "Planificar: Paso 1, selector de porciones",
+   "chrome": "normal",
+   "tab": 2,
+   "hasFab": false,
+   "items": 11
+  },
+  {
+   "id": "PLA-02",
+   "name": "Planificar: Paso 2A, confirmación exitosa",
+   "chrome": "normal",
+   "tab": 2,
+   "hasFab": false,
+   "items": 8
+  },
+  {
+   "id": "PLA-03",
+   "name": "Planificar: Paso 2B, faltan insumos",
+   "chrome": "normal",
+   "tab": 2,
+   "hasFab": false,
+   "items": 11
+  },
+  {
+   "id": "PLA-04",
+   "name": "Planificar: Paso 2C, conflicto de platos",
+   "chrome": "normal",
+   "tab": 2,
+   "hasFab": false,
+   "items": 6
+  },
+  {
+   "id": "PLA-05",
+   "name": "Plan semanal (7 días)",
+   "chrome": "normal",
+   "tab": 2,
+   "hasFab": false,
+   "items": 17
+  },
+  {
+   "id": "COM-01",
+   "name": "Lista de compras",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": false,
+   "items": 10
+  },
+  {
+   "id": "PRE-01",
+   "name": "Modal: ¿Ya preparaste el plato?",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 10
+  },
+  {
+   "id": "PRE-02",
+   "name": "Despensa actualizada: insumos descontados",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 10
+  },
+  {
+   "id": "PRE-03",
+   "name": "Alerta de vencimiento",
+   "chrome": "none",
+   "tab": null,
+   "hasFab": false,
+   "items": 8
+  },
+  {
+   "id": "SAL-01",
+   "name": "Resumen de salud",
+   "chrome": "normal",
+   "tab": 0,
+   "hasFab": false,
+   "items": 9
+  },
+  {
+   "id": "AJU-01",
+   "name": "Ajustes",
+   "chrome": "normal",
+   "tab": 3,
+   "hasFab": false,
+   "items": 7
+  },
+  {
+   "id": "AJU-02",
+   "name": "Exclusiones de ingredientes",
+   "chrome": "normal",
+   "tab": 3,
+   "hasFab": false,
+   "items": 9
+  },
+  {
+   "id": "AJU-03",
+   "name": "Integrantes del hogar / despensa compartida (Fase 2)",
+   "chrome": "normal",
+   "tab": 3,
+   "hasFab": false,
+   "items": 6
+  },
+  {
+   "id": "AJU-04",
+   "name": "Plan de suscripción (freemium)",
+   "chrome": "normal",
+   "tab": 3,
+   "hasFab": false,
+   "items": 10
+  }
+ ],
+ "links": {
+  "ACC-01": {
+   "0": "ACC-02",
+   "1": "INI-01"
+  },
+  "ACC-02": {
+   "3": "ACC-03",
+   "4": "INI-01",
+   "5": "INI-01",
+   "7": "INI-01",
+   "8": "INI-01"
+  },
+  "ACC-03": {
+   "7": "ACC-04",
+   "8": "ACC-04"
+  },
+  "ACC-04": {
+   "8": "AJU-03",
+   "9": "INI-02",
+   "10": "ACC-02",
+   "11": "INI-01"
+  },
+  "INI-01": {
+   "1": "REC-02",
+   "2": "PRE-01",
+   "3": "PLA-01",
+   "4": "PLA-05",
+   "5": "DES-01",
+   "7": "PRE-03",
+   "8": "COM-01",
+   "9": "REC-01",
+   "10": "REC-02",
+   "12": "SAL-01",
+   "13": "INI-03"
+  },
+  "INI-02": {
+   "4": "DES-03",
+   "5": "PLA-01"
+  },
+  "INI-03": {
+   "2": "REC-02",
+   "3": "REC-02"
+  },
+  "REC-01": {
+   "2": "REC-02",
+   "4": "REC-02",
+   "6": "INI-03",
+   "7": "DES-03",
+   "8": "PLA-01"
+  },
+  "REC-02": {
+   "11": "PLA-01",
+   "12": "PRE-01"
+  },
+  "DES-01": {
+   "2": "DES-02",
+   "3": "DES-02",
+   "4": "DES-02",
+   "5": "DES-02",
+   "6": "DES-02",
+   "7": "PRE-03"
+  },
+  "DES-02": {
+   "5": "DES-01",
+   "6": "DES-01"
+  },
+  "DES-03": {
+   "1": "DES-04",
+   "2": "DES-04",
+   "3": "DES-06"
+  },
+  "DES-04": {
+   "1": "DES-05",
+   "2": "DES-05",
+   "4": "DES-03"
+  },
+  "DES-05": {
+   "7": "DES-08",
+   "8": "DES-06",
+   "9": "DES-04"
+  },
+  "DES-06": {
+   "5": "DES-07",
+   "6": "DES-03"
+  },
+  "DES-07": {
+   "5": "DES-06",
+   "6": "DES-08",
+   "7": "DES-06"
+  },
+  "DES-08": {
+   "5": "PLA-01",
+   "6": "DES-01"
+  },
+  "PLA-01": {
+   "1": "REC-02",
+   "7": "PLA-02",
+   "8": "PLA-03",
+   "9": "PLA-04",
+   "10": "INI-01"
+  },
+  "PLA-02": {
+   "6": "PLA-05",
+   "7": "INI-01"
+  },
+  "PLA-03": {
+   "7": "PLA-05",
+   "8": "PLA-05",
+   "9": "COM-01",
+   "10": "PLA-01"
+  },
+  "PLA-04": {
+   "4": "PLA-05",
+   "5": "PLA-01"
+  },
+  "PLA-05": {
+   "3": "REC-02",
+   "4": "PLA-01",
+   "5": "REC-02",
+   "6": "PLA-01",
+   "8": "REC-02",
+   "9": "PLA-01",
+   "12": "PRE-01",
+   "15": "PLA-01",
+   "16": "COM-01"
+  },
+  "COM-01": {
+   "8": "DES-03",
+   "9": "DES-04"
+  },
+  "PRE-01": {
+   "8": "PRE-02",
+   "9": "INI-01"
+  },
+  "PRE-02": {
+   "7": "DES-01",
+   "8": "SAL-01",
+   "9": "INI-01"
+  },
+  "PRE-03": {
+   "2": "REC-02",
+   "3": "REC-02",
+   "4": "REC-02",
+   "5": "PRE-01",
+   "6": "DES-01",
+   "7": "DES-02"
+  },
+  "SAL-01": {
+   "8": "REC-01"
+  },
+  "AJU-01": {
+   "0": "AJU-03",
+   "1": "ACC-04",
+   "3": "AJU-02",
+   "4": "AJU-03",
+   "5": "AJU-04",
+   "6": "ACC-02"
+  },
+  "AJU-02": {
+   "7": "AJU-01",
+   "8": "REC-01"
+  },
+  "AJU-03": {
+   "3": "AJU-01",
+   "5": "AJU-01"
+  },
+  "AJU-04": {
+   "8": "AJU-01",
+   "9": "DES-05"
+  }
+ }
+}

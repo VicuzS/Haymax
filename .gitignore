@@ -1,0 +1,34 @@
+# ---------- Dependencias ----------
+node_modules/
+
+# ---------- Expo / React Native ----------
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.tsbuildinfo
+
+# ---------- Backend (api/) ----------
+api/.env
+api/*.db
+api/*.db-shm
+api/*.db-wal
+
+# ---------- Segredos y config local ----------
+*.pem
+.env
+.env.*
+!.env.example
+
+# ---------- Sistema y editores ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.tmp
+~$*
+
+# ---------- Herramientas de IA / locales ----------
+.claude/
+.cursor/
+.vscode/
