@@ -19,9 +19,18 @@ export function routeFor(id) {
 }
 
 // Navegación única del app: siempre se invoca con el ID del inventario (ACC-03, DES-05...).
-export function go(id) {
+// `params` permite pasar datos a la pantalla (p. ej. go("REC-02", { receta: id })).
+export function go(id, params) {
   if (!id) return;
   const route = routeFor(id);
   const nav = router.navigate || router.push;
-  nav(route);
+  if (params && Object.keys(params).length > 0) {
+    nav({ pathname: route, params });
+  } else {
+    nav(route);
+  }
+}
+
+export function canGoBack() {
+  return typeof router.canGoBack === "function" ? router.canGoBack() : false;
 }

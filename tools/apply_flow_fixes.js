@@ -267,19 +267,19 @@ setItems("ACC-02", [
 ]);
 setLinks("ACC-02", { 3: "ACC-03", 4: "INI-01", 5: "INI-01", 7: "INI-01", 8: "INI-01" });
 
-/* 18) INI-01 — menos densidad: hoy + alerta + planificar arriba;
+/* 18) INI-01 — menos densidad: hoy + lista de compras arriba + alerta;
        se quita una foto duplicada del motor (REC-01 ya la muestra) y la
        sugerencia pasa a tarjeta compacta sin imagen (la foto esta en REC-02) */
 setItems("INI-01", [
   ["greet", "Hola, Rosa", "Martes 19 de noviembre · Surquillo"],
   ["card", "🍽 Plato planeado hoy", "Almuerzo · Ají de Gallina · 4 porciones", null, "Ver"],
+  ["card", "Lista de compras", "7 de 12 artículos listos", null, "Ver"],
   ["link", "Ya lo preparé · descontar insumos"],
   ["link", "Planificar un plato nuevo"],
   ["link", "Ver mi plan de la semana"],
   ["sec", "Tu despensa", "Ver todo"],
   ["chips", ["12 disponibles", "3 por vencer"], "3 por vencer"],
   ["note", "3 insumos vencen en menos de 3 días: revísalos hoy."],
-  ["card", "Lista de compras", "7 de 12 artículos listos", null, "Ver"],
   ["sec", "💡 ¿Qué puedo cocinar?", "Abrir motor"],
   ["card", "🍽 Lomo Saltado Criollo", "4 porciones · 25 min · S/ 8.50 por porción", null, "Ver"],
   ["stat", "S/ 42", "Ahorro acumulado vs delivery", "+ S/ 12"],
@@ -287,8 +287,8 @@ setItems("INI-01", [
   ["sec", "📍 Precios e insumos cerca de ti", "Otros distritos"],
 ]);
 setLinks("INI-01", {
-  1: "REC-02", 2: "PRE-01", 3: "PLA-01", 4: "PLA-05", 5: "DES-01", 7: "PRE-03",
-  8: "COM-01", 9: "REC-01", 10: "REC-02", 12: "SAL-01", 13: "INI-03",
+  1: "REC-02", 2: "COM-01", 3: "PRE-01", 4: "PLA-01", 5: "PLA-05", 6: "DES-01",
+  8: "PRE-03", 9: "REC-01", 10: "REC-02", 12: "SAL-01", 13: "INI-03",
 });
 
 /* 19) AJU-04 — sin jerga: OCR -> escaneo */
@@ -331,6 +331,25 @@ setLinks("DES-04", { 1: "DES-05", 2: "DES-05", 4: "DES-03" });
 /* 21) DES-05 — nombre de la pantalla sin jerga (OCR -> escaneo) */
 get("DES-05").name = "Revisión del escaneo";
 
+/* 22) REC-02 — atajo a la lista desde los ingredientes que faltan */
+(function () {
+  var it = get("REC-02").items;
+  var already = it.some(function (x) {
+    return x[0] === "link" && /lista de compras/i.test(x[1] || "");
+  });
+  if (!already) it.splice(10, 0, ["link", "Agregar faltantes a mi lista de compras", "CENTER"]);
+})();
+setLinks("REC-02", { 10: "COM-01", 12: "PLA-01", 13: "PRE-01" });
+
+/* 23) DES-01 — atajo a la lista de compras desde la despensa */
+(function () {
+  var it = get("DES-01").items;
+  var last = it[it.length - 1];
+  var already = last && last[0] === "link" && /lista de compras/i.test(last[1] || "");
+  if (!already) it.push(["link", "Lo que falta está en tu lista de compras", "CENTER"]);
+})();
+setLinks("DES-01", { 2: "DES-02", 3: "DES-02", 4: "DES-02", 5: "DES-02", 6: "DES-02", 7: "PRE-03", 8: "COM-01" });
+
 /* ---------- reescribir prototipo/code.js ---------- */
 const iS = raw.indexOf("var SCREENS = ");
 const iB = raw.indexOf("\nbuild();");
@@ -351,6 +370,26 @@ const meta = {
   links: L,
 };
 fs.writeFileSync(META, JSON.stringify(meta, null, 1), "utf8");
+
+/* wireframe para la app (Fase 0 del frontend): items reales por pantalla */
+const wire = {};
+const flags = {};
+S.forEach((x) => {
+  wire[x.id] = x.items || [];
+  flags[x.id] = { hasFab: !!x.hasFab, tab: x.tab === undefined ? null : x.tab };
+});
+fs.writeFileSync(
+  path.join(ROOT, "app", "src", "data", "wireframe.js"),
+  [
+    "// Items del wireframe por pantalla — GENERADO por tools/apply_flow_fixes.js.",
+    "// Las pantallas reales reemplazan este contenido a medida que se implementan.",
+    `export const WIRE = ${JSON.stringify(wire)};`,
+    `export const FLAGS = ${JSON.stringify(flags)};`,
+    "",
+  ].join("\n"),
+  "utf8"
+);
+
 const gen = spawnSync(process.execPath, [GEN], { stdio: "inherit" });
 if (gen.status !== 0) throw new Error("fallo _gen_screens.js");
 

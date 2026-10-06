@@ -18,6 +18,7 @@ export const colors = {
   field: "#F7F7F7",
   track: "#EEEEEE",
   greyBg: "#F5F5F5",
+  canvas: "#F8F9FA",
   white: "#FFFFFF",
   dark: "#2B2B2B",
 };

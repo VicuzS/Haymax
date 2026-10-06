@@ -9,7 +9,15 @@ const meta = JSON.parse(fs.readFileSync(path.join(__dirname, "_screens_meta.json
 const outDir = path.join(__dirname, "..", "src", "screens");
 fs.mkdirSync(outDir, { recursive: true });
 
+// Pantallas ya implementadas (Fases 1+): el generador no las pisa.
+const IMPLEMENTED = new Set([
+  "INI-01", "INI-02", "INI-03", "REC-01", "REC-02",
+  "DES-01", "DES-02", "DES-03", "DES-04", "DES-05", "DES-06", "DES-07", "DES-08",
+  "PLA-01", "PLA-02", "PLA-03", "PLA-04", "PLA-05", "COM-01", "SAL-01",
+]);
+
 for (const s of meta.screens) {
+  if (IMPLEMENTED.has(s.id)) continue;
   const comp = s.id.replace(/-/g, "_");
   const file = path.join(outDir, `${s.id}.js`);
   const code = [

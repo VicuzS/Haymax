@@ -16,10 +16,11 @@ function NotFound({ id }) {
 }
 
 // Ruta dinámica: /screen/ACC-03, /screen/DES-05... — mantiene el ID del inventario.
+// Los params llegan como props a la pantalla (p. ej. REC-02 con { receta }).
 export default function ScreenRoute() {
   const params = useLocalSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const screen = renderScreen(id);
+  const screen = renderScreen(id, params);
 
   return (
     <>

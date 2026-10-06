@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { colors, spacing, typography } from "../tokens";
+import Icon from "./Icon";
 
 // Cabecera de las pantallas (equivale al AppBar del prototipo Figma).
 export default function AppBar({ title, crumb, onBack, right }) {
@@ -8,7 +9,7 @@ export default function AppBar({ title, crumb, onBack, right }) {
       <View style={styles.side}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={10} style={styles.back}>
-            <Text style={styles.backText}>←</Text>
+            <Icon name="chevron-back" size={24} color={colors.primary} />
           </Pressable>
         ) : null}
         <View>
@@ -36,7 +37,6 @@ const styles = StyleSheet.create({
   },
   side: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   back: { marginRight: spacing.xs },
-  backText: { fontSize: 22, color: colors.primary },
   crumb: { fontSize: typography.sizes.caption, color: colors.muted, letterSpacing: 0.7 },
   title: { fontSize: typography.sizes.subtitle, fontWeight: typography.weights.semibold, color: colors.text },
 });
