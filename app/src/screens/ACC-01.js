@@ -1,12 +1,17 @@
-import ScreenStub from "../components/ScreenStub";
+import { Pressable, StyleSheet } from "react-native";
+import Screen from "../components/Screen";
+import * as K from "../components/kit";
+import { go } from "../lib/nav";
 
 export default function ACC_01() {
   return (
-    <ScreenStub
-      id="ACC-01"
-      name="Splash"
-      items={2}
-      links={{"0":"ACC-02","1":"INI-01"}}
-    />
+    <Screen id="ACC-01" name="Bienvenida">
+      <Pressable style={styles.center} onPress={() => go("ACC-02")} accessible accessibilityLabel="Empezar">
+        <K.Logo tagline="Cocina con lo que ya tienes" />
+      </Pressable>
+      <K.LinkText label="¿Ya tenías sesión? Entra a mi inicio" align="CENTER" onPress={() => go("INI-01")} />
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({ center: { alignItems: "center", marginTop: 64, marginBottom: 24 } });

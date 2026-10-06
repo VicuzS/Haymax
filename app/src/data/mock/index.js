@@ -135,3 +135,47 @@ export function agregarALista(ings) {
     }
   });
 }
+
+// Fase 4 — descontar insumos usados al cocinar (PRE-01/PRE-02).
+function normKey(s) {
+  return String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function bucket(u) {
+  const n = normKey(u);
+  if (["g", "gr", "gramo", "gramos", "kg"].indexOf(n) !== -1) return "peso";
+  if (["und", "unid", "unidad", "unidades", "lata", "latas", "atado", "docena", "botella", "paquete"].indexOf(n) !== -1) {
+    return "cantidad";
+  }
+  return n;
+}
+
+function buscarPantry(label) {
+  const lw = normKey(label).split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  return pantryMock.findIndex((p) => {
+    const n = normKey(p.nombre);
+    const pw = n.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    return lw.some((w) => n.indexOf(w) !== -1) || pw.some((w) => normKey(label).indexOf(w) !== -1);
+  });
+}
+
+function aplicar(label, qty, unit) {
+  const i = buscarPantry(label);
+  if (i < 0) return;
+  const p = pantryMock[i];
+  if (bucket(p.unidad) !== bucket(unit)) return;
+  const nueva = Math.max(0, Number(p.cantidad) - Number(qty));
+  pantryMock.splice(i, 1, { ...p, cantidad: nueva });
+}
+
+export function descontarDespensa(items) {
+  items.forEach((it) => aplicar(it.label, it.qty, it.unit));
+}
+
+// Ajuste fino desde PRE-02: diferencia entre lo editado y lo base.
+export function ajustarDespensa(items) {
+  items.forEach((it) => {
+    const delta = Number(it.qty) - Number(it.base);
+    if (delta !== 0) aplicar(it.label, delta, it.unit);
+  });
+}

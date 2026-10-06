@@ -14,6 +14,8 @@ const IMPLEMENTED = new Set([
   "INI-01", "INI-02", "INI-03", "REC-01", "REC-02",
   "DES-01", "DES-02", "DES-03", "DES-04", "DES-05", "DES-06", "DES-07", "DES-08",
   "PLA-01", "PLA-02", "PLA-03", "PLA-04", "PLA-05", "COM-01", "SAL-01",
+  "ACC-01", "ACC-02", "ACC-03", "ACC-04", "AJU-01", "AJU-02", "AJU-03", "AJU-04",
+  "PRE-01", "PRE-02", "PRE-03",
 ]);
 
 for (const s of meta.screens) {
