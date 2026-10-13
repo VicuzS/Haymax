@@ -5,7 +5,7 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { ajustarDespensa } from "../data/mock";
+import { ajustarAlCocinar } from "../lib/api";
 
 const BASE = [
   { id: "D1", label: "Lomo fino de res", qty: 500, base: 500, unit: "g" },
@@ -24,8 +24,8 @@ export default function PRE_02() {
       fs.map((f) => (f.id === id ? { ...f, qty: Math.max(0, f.qty + d * PASO(f.unit)) } : f))
     );
 
-  const confirmar = () => {
-    ajustarDespensa(filas);
+  const confirmar = async () => {
+    await ajustarAlCocinar(filas);
     go("DES-01");
   };
 

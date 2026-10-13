@@ -5,8 +5,11 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
-import { recetaById, faltantes, comidasDelDia, planCobertura, faltantesDelPlan } from "../lib/domain";
+import useApi from "../hooks/useApi";
+import { getPlanSemana } from "../lib/api";
+import { faltantes } from "../lib/domain";
 
+const NOMBRE = "Mi plan de la semana";
 const DIAS = [
   ["Lu", "lunes", "Lunes 18 de noviembre"],
   ["Ma", "martes", "Martes 19 de noviembre"],
@@ -19,13 +22,28 @@ const DIAS = [
 
 export default function PLA_05() {
   const [sel, setSel] = useState("Ma");
+  const { data, loading, error, recargar } = useApi(getPlanSemana);
+
+  if (loading) {
+    return (
+      <Screen id="PLA-05" name={NOMBRE}>
+        <K.Loading text="Cargando tu plan…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="PLA-05" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
   const actual = DIAS.find((d) => d[0] === sel) || DIAS[1];
-  const comidas = comidasDelDia(actual[1]);
-  const cob = planCobertura();
-  const porComprar = faltantesDelPlan().length;
+  const comidas = data.plan.filter((m) => m.dia === actual[1]);
 
   return (
-    <Screen id="PLA-05" name="Mi plan de la semana">
+    <Screen id="PLA-05" name={NOMBRE}>
       <K.Chips items={DIAS.map((d) => d[0])} active={sel} onPressItem={setSel} />
       <K.SectionTitle title="Semana del 18–24 de noviembre" action="‹  ›" />
       <K.SectionTitle title={actual[2]} />
@@ -34,8 +52,8 @@ export default function PLA_05() {
         <K.TextLine text="Sin platos para este día. Planifícalos con el botón de abajo." />
       ) : (
         comidas.map((m) => {
-          const r = recetaById(m.recetaId);
-          const f = faltantes(r).length;
+          const r = m.receta;
+          const f = faltantes(r, data.pantry).length;
           return (
             <View key={m.id} style={styles.bloque}>
               <K.Card
@@ -57,7 +75,7 @@ export default function PLA_05() {
 
       <K.Note text="Si cambias tu despensa, el plan se recalcula solo." />
       <K.TextLine
-        text={`Cobertura de la semana: ${cob.planificadas} de ${cob.total} comidas planificadas · ${porComprar} insumos por comprar.`}
+        text={`Cobertura de la semana: ${data.cobertura.planificadas} de ${data.cobertura.total} comidas planificadas · ${data.porComprar} insumos por comprar.`}
       />
       <K.LinkText label="Ya cociné este plato · descontar insumos" align="CENTER" onPress={() => go("PRE-01")} />
 

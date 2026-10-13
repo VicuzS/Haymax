@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { renderScreen } from "../../screens";
-import { colors, spacing, typography } from "../../tokens";
+import { renderScreen } from "../../../screens";
+import { colors, spacing, typography } from "../../../tokens";
 
 function NotFound({ id }) {
   return (
@@ -15,7 +15,7 @@ function NotFound({ id }) {
   );
 }
 
-// Ruta dinámica: /screen/ACC-03, /screen/DES-05... — mantiene el ID del inventario.
+// Ruta dinámica: /screen/ACC-03, /screen/DES-05...  Emantiene el ID del inventario.
 // Los params llegan como props a la pantalla (p. ej. REC-02 con { receta }).
 export default function ScreenRoute() {
   const params = useLocalSearchParams();

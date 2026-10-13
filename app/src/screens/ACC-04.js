@@ -5,7 +5,7 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { guardarSesion } from "../lib/sesion";
+import { guardarSesion } from "../lib/api";
 
 const DISTRITOS = ["Surquillo", "Miraflores", "Lima Norte"];
 

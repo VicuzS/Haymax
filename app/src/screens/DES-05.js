@@ -3,14 +3,15 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
-import { scanMock, addLastAdded } from "../data/mock";
+import { scanMock } from "../data/mock";
+import { agregarUltimos } from "../lib/api";
 
 export default function DES_05() {
   const leidos = scanMock.filter((s) => !s.revisar).length;
   const revisar = scanMock.length - leidos;
 
-  const confirmar = () => {
-    addLastAdded(
+  const confirmar = async () => {
+    await agregarUltimos(
       scanMock.map((s, i) => ({
         id: "L" + (i + 1),
         nombre: s.nombre,

@@ -8,6 +8,7 @@ const recetasRoutes = require("./routes/recetas");
 const despensaRoutes = require("./routes/despensa");
 const planesRoutes = require("./routes/planes");
 const favoritosRoutes = require("./routes/favoritos");
+const comprasRoutes = require("./routes/compras");
 
 const app = express();
 app.use(cors());
@@ -22,6 +23,7 @@ app.use("/api/recetas", recetasRoutes);
 app.use("/api/despensa", despensaRoutes);
 app.use("/api/planes", planesRoutes);
 app.use("/api/favoritos", favoritosRoutes);
+app.use("/api/compras", comprasRoutes);
 
 app.use((req, res) => res.status(404).json({ error: "ruta no encontrada" }));
 app.use((err, _req, res, _next) => {

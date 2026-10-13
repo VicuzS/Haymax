@@ -1,28 +1,42 @@
 import Screen from "../components/Screen";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { recipesMock, mealPlanMock } from "../data/mock";
-import { recetaById, precioPorPorcion, soles, pantryStats, shoppingProgress, balanceSemanal } from "../lib/domain";
+import useApi from "../hooks/useApi";
+import { getInicio } from "../lib/api";
+import { precioPorPorcion, soles } from "../lib/domain";
 
-const HOY = { dia: "martes", fecha: "Martes 19 de noviembre · Surquillo" };
+const NOMBRE = "Inicio: plato planeado hoy";
 
 export default function INI_01() {
-  const plan = mealPlanMock.find((m) => m.dia === HOY.dia) || mealPlanMock[0];
-  const recetaHoy = recetaById(plan.recetaId);
-  const stats = pantryStats();
-  const shop = shoppingProgress();
-  const sugerida = recipesMock[0];
-  const atencion = stats.porVencer + stats.vencidos;
-  const balance = balanceSemanal();
+  const { data, loading, error, recargar } = useApi(getInicio);
+
+  if (loading) {
+    return (
+      <Screen id="INI-01" name={NOMBRE}>
+        <K.Loading text="Cargando tu inicio…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="INI-01" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const { hoy, plan, recetaHoy, sugerida, stats, shop, balance, atencion } = data;
+  const comida = (plan && plan.comida) || "almuerzo";
+  const porciones = (plan && plan.porciones) || recetaHoy.porciones;
 
   return (
-    <Screen id="INI-01" name="Inicio: plato planeado hoy">
-      <K.Header title="Hola, Rosa" sub={HOY.fecha} />
+    <Screen id="INI-01" name={NOMBRE}>
+      <K.Header title="Hola, Rosa" sub={hoy.fecha} />
 
       <K.Card
         thumb={recetaHoy.imagen}
         title="Plato planeado hoy"
-        sub={`${plan.comida} · ${recetaHoy.nombre} · ${plan.porciones} porciones`}
+        sub={`${comida} · ${recetaHoy.nombre} · ${porciones} porciones`}
         right="Ver"
         onPress={() => go("REC-02", { receta: recetaHoy.id })}
       />

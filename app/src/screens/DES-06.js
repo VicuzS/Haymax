@@ -5,7 +5,7 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { manualAddsMock } from "../data/mock";
+import { agregarManualInsumo } from "../lib/api";
 
 export default function DES_06() {
   const [producto, setProducto] = useState("");
@@ -15,9 +15,8 @@ export default function DES_06() {
 
   const listo = producto.trim().length > 0 && cantidad.trim().length > 0;
 
-  const continuar = () => {
-    manualAddsMock.push({
-      id: "A" + (manualAddsMock.length + 1),
+  const continuar = async () => {
+    await agregarManualInsumo({
       nombre: producto.trim(),
       cantidad: `${cantidad.trim()} ${unidad.trim() || "unid"}`,
     });

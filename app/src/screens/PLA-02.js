@@ -3,13 +3,33 @@ import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { recetaById } from "../lib/domain";
+import useApi from "../hooks/useApi";
+import { getReceta } from "../lib/api";
+
+const NOMBRE = "Confirmación: plato agregado al plan";
 
 export default function PLA_02({ receta, porciones, dia }) {
-  const r = recetaById(receta);
+  const { data, loading, error, recargar } = useApi(() => getReceta(receta));
+
+  if (loading) {
+    return (
+      <Screen id="PLA-02" name={NOMBRE}>
+        <K.Loading text="Guardando en tu plan…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="PLA-02" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const r = data.receta;
 
   return (
-    <Screen id="PLA-02" name="Confirmación: plato agregado al plan">
+    <Screen id="PLA-02" name={NOMBRE}>
       <K.CheckCircle title="Plato agregado a tu plan" />
       <K.SectionTitle title={`Se usarán (${dia || "Hoy"} · ${porciones || r.porciones} porciones)`} />
       <View style={styles.rows}>

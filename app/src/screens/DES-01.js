@@ -3,9 +3,10 @@ import Screen from "../components/Screen";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
-import { pantryMock } from "../data/mock";
-import { pantryStats } from "../lib/domain";
+import useApi from "../hooks/useApi";
+import { getDespensa } from "../lib/api";
 
+const NOMBRE = "Mi despensa (lista)";
 const CATS = ["Todos", "Verduras", "Lácteos", "Secos", "Carnes"];
 const CAT_ICON = { Verduras: "leaf-outline", Lácteos: "water-outline", Secos: "cube-outline", Carnes: "restaurant-outline" };
 
@@ -18,16 +19,32 @@ const ESTADO = {
 export default function DES_01() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("Todos");
-  const stats = pantryStats();
+  const { data, loading, error, recargar } = useApi(getDespensa);
 
-  const lista = pantryMock.filter((p) => {
+  if (loading) {
+    return (
+      <Screen id="DES-01" name={NOMBRE}>
+        <K.Loading text="Cargando tu despensa…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="DES-01" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const { items, stats } = data;
+  const lista = items.filter((p) => {
     const okCat = cat === "Todos" || p.categoria === cat;
     const okQ = p.nombre.toLowerCase().includes(q.trim().toLowerCase());
     return okCat && okQ;
   });
 
   return (
-    <Screen id="DES-01" name="Mi despensa (lista)">
+    <Screen id="DES-01" name={NOMBRE}>
       <K.InputField placeholder="Buscar insumo…" value={q} onChangeText={setQ} />
       <K.Chips items={CATS} active={cat} onPressItem={setCat} />
 

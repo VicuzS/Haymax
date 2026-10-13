@@ -4,35 +4,49 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors, spacing } from "../tokens";
-import { balanceSemanal } from "../lib/domain";
+import useApi from "../hooks/useApi";
+import { getBalance } from "../lib/api";
 
-const COCINADAS = [
-  { label: "Proteínas", value: "3 platos", icon: "🥩", color: undefined },
-  { label: "Verduras", value: "5 platos", icon: "🥦", color: undefined },
-  { label: "Frituras", value: "2 platos", icon: "🍟", color: colors.amber },
-];
-
-const SUGERENCIAS = [
-  { id: "S1", title: "Suma 1 ensalada en 2 días", sub: "más fibra" },
-  { id: "S2", title: "Cambia 1 fritura por caldo", sub: "menos aceite" },
-];
+const NOMBRE = "Balance y ahorro de la semana";
+const TONO = { amber: colors.amber };
 
 export default function SAL_01() {
-  const b = balanceSemanal();
+  const { data, loading, error, recargar } = useApi(getBalance);
+
+  if (loading) {
+    return (
+      <Screen id="SAL-01" name={NOMBRE}>
+        <K.Loading text="Calculando tu balance…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="SAL-01" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
 
   return (
-    <Screen id="SAL-01" name="Balance y ahorro de la semana">
-      <K.Stat value={`${b.pct}%`} label="Balance de tu semana" delta={b.delta} />
+    <Screen id="SAL-01" name={NOMBRE}>
+      <K.Stat value={`${data.pct}%`} label="Balance de tu semana" delta={data.delta} />
 
       <K.SectionTitle title="Esta semana cocinaste" />
       <View style={styles.rows}>
-        {COCINADAS.map((c) => (
-          <K.Row key={c.label} label={c.label} value={c.value} icon={c.icon} valueColor={c.color} />
+        {data.cocinadas.map((c) => (
+          <K.Row
+            key={c.label}
+            label={c.label}
+            value={c.value}
+            icon={c.icon}
+            valueColor={c.color ? TONO[c.color] : undefined}
+          />
         ))}
       </View>
 
       <K.SectionTitle title="Sugerencias simples" />
-      {SUGERENCIAS.map((s) => (
+      {data.sugerencias.map((s) => (
         <K.Card key={s.id} title={s.title} sub={s.sub} />
       ))}
 

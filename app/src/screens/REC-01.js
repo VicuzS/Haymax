@@ -3,20 +3,39 @@ import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { recipesMock } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getRecetas } from "../lib/api";
 import { faltantes, precioPorPorcion, soles } from "../lib/domain";
 
+const NOMBRE = "¿Qué puedo cocinar? (motor)";
 const FILTROS = ["Completas", "Casi listas", "Rápidas"];
 
 export default function REC_01() {
   const [filtro, setFiltro] = useState("Completas");
+  const { data, loading, error, recargar } = useApi(getRecetas);
 
-  const conEstado = recipesMock.map((r) => ({ r, f: faltantes(r) }));
-  const listas = filtro === "Completas"
-    ? conEstado.filter((x) => x.f.length === 0)
-    : filtro === "Casi listas"
-      ? conEstado.filter((x) => x.f.length >= 1 && x.f.length <= 2)
-      : conEstado.filter((x) => x.r.minutos <= 30);
+  if (loading) {
+    return (
+      <Screen id="REC-01" name={NOMBRE}>
+        <K.Loading text="Buscando recetas…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="REC-01" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const conEstado = data.recetas.map((r) => ({ r, f: faltantes(r, data.pantry) }));
+  const listas =
+    filtro === "Completas"
+      ? conEstado.filter((x) => x.f.length === 0)
+      : filtro === "Casi listas"
+        ? conEstado.filter((x) => x.f.length >= 1 && x.f.length <= 2)
+        : conEstado.filter((x) => x.r.minutos <= 30);
 
   const titulo =
     filtro === "Completas"
@@ -29,7 +48,7 @@ export default function REC_01() {
   conEstado.forEach((x) => x.f.forEach((i) => faltanTotales.add(i)));
 
   return (
-    <Screen id="REC-01" name="¿Qué puedo cocinar? (motor)">
+    <Screen id="REC-01" name={NOMBRE}>
       <K.Chips items={FILTROS} active={filtro} onPressItem={setFiltro} />
       <K.SectionTitle title={titulo} />
 

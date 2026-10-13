@@ -3,21 +3,42 @@ import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { recetaById, ingredienteCubierto, faltantes } from "../lib/domain";
-import { agregarALista } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getReceta, enviarFaltantesALista } from "../lib/api";
+import { faltantes, ingredienteCubierto } from "../lib/domain";
+
+const NOMBRE = "Planificar: resultado con faltantes";
 
 export default function PLA_03({ receta }) {
-  const r = recetaById(receta);
-  const tiene = r.ingredientes.filter((i) => ingredienteCubierto(i));
-  const falta = faltantes(r);
+  const { data, loading, error, recargar } = useApi(() => getReceta(receta));
 
-  const planificarConFaltantes = () => {
-    agregarALista(falta);
+  if (loading) {
+    return (
+      <Screen id="PLA-03" name={NOMBRE}>
+        <K.Loading text="Revisando tu despensa…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="PLA-03" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const r = data.receta;
+  const pantry = data.pantry;
+  const tiene = r.ingredientes.filter((i) => ingredienteCubierto(i, pantry));
+  const falta = faltantes(r, pantry);
+
+  const planificarConFaltantes = async () => {
+    await enviarFaltantesALista(falta);
     go("PLA-05");
   };
 
   return (
-    <Screen id="PLA-03" name="Planificar: resultado con faltantes">
+    <Screen id="PLA-03" name={NOMBRE}>
       <K.SectionTitle title="Tienes en despensa" />
       {tiene.length === 0 ? (
         <K.TextLine text="Ningún insumo de esta receta está en tu despensa." />

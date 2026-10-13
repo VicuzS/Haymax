@@ -294,6 +294,32 @@ export function EmptyState({ title, sub }) {
   );
 }
 
+export function Loading({ text }) {
+  return (
+    <View style={styles.loading}>
+      <Icon name="hourglass-outline" size={24} color={colors.primary} />
+      <Text style={styles.loadingText}>{text || "Cargando…"}</Text>
+    </View>
+  );
+}
+
+export function ErrorState({ text, onRetry }) {
+  const body = (
+    <View style={styles.errorBox}>
+      <Icon name="cloud-offline-outline" size={28} color={colors.red} />
+      <Text style={styles.errorText}>{text || "Algo salió mal cargando los datos."}</Text>
+      {onRetry ? <Text style={styles.errorRetry}>Tocar para reintentar</Text> : null}
+    </View>
+  );
+  return onRetry ? (
+    <Pressable onPress={onRetry} style={({ pressed }) => pressed && styles.pressed}>
+      {body}
+    </Pressable>
+  ) : (
+    body
+  );
+}
+
 export function Progress({ label, right, pct }) {
   return (
     <View style={styles.prog}>
@@ -589,6 +615,13 @@ const styles = StyleSheet.create({
   empty: { height: 130, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.field, alignItems: "center", justifyContent: "center", padding: spacing.md, gap: spacing.sm },
   emptyTitle: { fontSize: typography.sizes.body, color: colors.sub, textAlign: "center" },
   emptySub: { fontSize: typography.sizes.small, color: colors.muted, textAlign: "center", marginTop: 6 },
+
+  loading: { alignItems: "center", justifyContent: "center", paddingVertical: 48, gap: spacing.sm },
+  loadingText: { fontSize: typography.sizes.body, color: colors.sub },
+
+  errorBox: { backgroundColor: colors.redBg, borderRadius: radius.lg, padding: spacing.md, alignItems: "center", gap: spacing.sm },
+  errorText: { fontSize: typography.sizes.body, color: colors.red, textAlign: "center" },
+  errorRetry: { fontSize: typography.sizes.small, fontWeight: typography.weights.semibold, color: colors.red, textDecorationLine: "underline" },
 
   prog: { marginBottom: 4 },
   progTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

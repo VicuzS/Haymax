@@ -32,12 +32,14 @@ router.put("/:id", (req, res) => {
   const p = req.body || {};
   const r = q.run(
     `UPDATE despensa SET cantidad = COALESCE(@cantidad, cantidad),
+      unidad = COALESCE(@unidad, unidad),
       estado = COALESCE(@estado, estado),
       fecha_vencimiento = COALESCE(@fecha_vencimiento, fecha_vencimiento)
       WHERE id = @id`,
     {
       id: req.params.id,
       cantidad: p.cantidad ?? null,
+      unidad: p.unidad ?? null,
       estado: p.estado ?? null,
       fecha_vencimiento: p.fecha_vencimiento ?? null,
     }

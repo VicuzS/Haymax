@@ -2,21 +2,39 @@ import { useState } from "react";
 import Screen from "../components/Screen";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { recipesMock } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getRecetas } from "../lib/api";
 import { faltantes, precioPorPorcion, soles } from "../lib/domain";
 
+const NOMBRE = "Recetas cerca de ti (por distrito)";
 const DISTRITOS = ["Surquillo", "Miraflores", "Lima Norte"];
 
 export default function INI_03() {
   const [distrito, setDistrito] = useState("Surquillo");
+  const { data, loading, error, recargar } = useApi(getRecetas);
+
+  if (loading) {
+    return (
+      <Screen id="INI-03" name={NOMBRE}>
+        <K.Loading text="Buscando recetas cerca de ti…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="INI-03" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
 
   return (
-    <Screen id="INI-03" name="Recetas cerca de ti (por distrito)">
+    <Screen id="INI-03" name={NOMBRE}>
       <K.SectionTitle title={`Recetas cerca de ${distrito}`} action="Actualizar" />
       <K.Chips items={DISTRITOS} active={distrito} onPressItem={setDistrito} />
 
-      {recipesMock.map((r) => {
-        const faltan = faltantes(r).length;
+      {data.recetas.map((r) => {
+        const faltan = faltantes(r, data.pantry).length;
         return (
           <K.PhotoCard
             key={r.id}

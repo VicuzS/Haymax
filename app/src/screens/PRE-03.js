@@ -3,13 +3,33 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
-import { pantryMock } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getAlertas } from "../lib/api";
+
+const NOMBRE = "Alerta: insumos por vencer";
 
 export default function PRE_03() {
-  const atencion = pantryMock.filter((p) => p.estado !== "ok");
+  const { data, loading, error, recargar } = useApi(getAlertas);
+
+  if (loading) {
+    return (
+      <Screen id="PRE-03" name={NOMBRE}>
+        <K.Loading text="Revisando tu despensa…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="PRE-03" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const atencion = data.atencion;
 
   return (
-    <Screen id="PRE-03" name="Alerta: insumos por vencer">
+    <Screen id="PRE-03" name={NOMBRE}>
       <K.Banner
         title={atencion.length > 0 ? `Vencen pronto · ${atencion.length} insumos` : "Sin alertas de vencimiento"}
         sub="Revísalos hoy para no desperdiciarlos"

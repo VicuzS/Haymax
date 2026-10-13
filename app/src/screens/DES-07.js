@@ -4,14 +4,13 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { manualAddsMock, addLastAdded } from "../data/mock";
+import { getPendientesManuales, confirmarAltaManual } from "../lib/api";
 
 export default function DES_07() {
-  const items = [...manualAddsMock];
+  const items = getPendientesManuales();
 
-  const confirmar = () => {
-    addLastAdded(items);
-    manualAddsMock.splice(0, manualAddsMock.length);
+  const confirmar = async () => {
+    await confirmarAltaManual(items);
     go("DES-08");
   };
 

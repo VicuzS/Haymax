@@ -99,3 +99,33 @@ export function balanceSemanal() {
     texto: "Tu semana va balanceada: 3 proteínas, 5 verduras y 2 frituras.",
   };
 }
+
+// Descuento puro sobre un arreglo de insumos (lo usa la API real contra la
+// lista de /despensa; no muta el arreglo recibido). Cantidades negativas
+// suman (ajuste fino de PRE-02).
+function bucketUnidad(u) {
+  const n = norm(u);
+  if (["g", "gr", "gramo", "gramos", "kg"].indexOf(n) !== -1) return "peso";
+  if (["und", "unid", "unidad", "unidades", "lata", "latas", "atado", "docena", "botella", "paquete"].indexOf(n) !== -1) {
+    return "cantidad";
+  }
+  return n;
+}
+
+export function descontarEn(items, descuentos) {
+  const arr = items.map((p) => ({ ...p }));
+  descuentos.forEach((it) => {
+    const label = norm(it.label);
+    const lw = label.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+    const i = arr.findIndex((p) => {
+      const n = norm(p.nombre);
+      const pw = n.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+      return lw.some((w) => n.indexOf(w) !== -1) || pw.some((w) => label.indexOf(w) !== -1);
+    });
+    if (i < 0) return;
+    const p = arr[i];
+    if (bucketUnidad(p.unidad) !== bucketUnidad(it.unit)) return;
+    arr[i] = { ...p, cantidad: Math.max(0, Number(p.cantidad) - Number(it.qty)) };
+  });
+  return arr;
+}

@@ -1,26 +1,19 @@
-import { useState } from "react";
 import { ScrollView, View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { colors, radius, spacing, typography } from "../tokens";
+import { SHOW_DEV_TAGS } from "../config";
 import AppBar from "./AppBar";
-import Button from "./Button";
 import Items from "./Items";
-import { go } from "../lib/nav";
 import { WIRE } from "../data/wireframe";
 
 function canGoBack() {
   return typeof router.canGoBack === "function" ? router.canGoBack() : false;
 }
 
-// Base de las 31 pantallas: pinta el wireframe con el kit de UI (Fase 0) y
-// mantiene el ID, el nombre y las conexiones mientras cada pantalla se
-// implementa de verdad (Fases 1-4).
+// Base mínima para pantallas aún no implementadas (hoy: ninguna — las 31 están
+// hechas). Conserva el render del wireframe por si se agrega una pantalla nueva.
 export default function ScreenStub({ id, name, items = 0, links = {} }) {
-  const [showNav, setShowNav] = useState(false);
   const wire = WIRE[id] || [];
-  const targets = Object.keys(links)
-    .map((k) => links[k])
-    .filter((v, i, arr) => arr.indexOf(v) === i);
 
   return (
     <View style={styles.root}>
@@ -30,34 +23,19 @@ export default function ScreenStub({ id, name, items = 0, links = {} }) {
         onBack={canGoBack() ? () => router.back() : undefined}
       />
       <ScrollView contentContainerStyle={styles.body}>
-        <View style={styles.chip}>
-          <Text style={styles.chipText}>{id}</Text>
-        </View>
+        {SHOW_DEV_TAGS ? (
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>{id}</Text>
+          </View>
+        ) : null}
 
         <Items items={wire} links={links} />
 
-        <View style={styles.footer}>
+        {SHOW_DEV_TAGS ? (
           <Text style={styles.meta}>
-            Wireframe navegable · {items} elementos · {targets.length} destinos
+            Wireframe navegable · {items} elementos
           </Text>
-          <Button
-            label={showNav ? "Ocultar enlaces" : "Ver enlaces de esta pantalla"}
-            variant="ghost"
-            full
-            onPress={() => setShowNav((v) => !v)}
-          />
-          {showNav
-            ? targets.map((t) => (
-                <Button
-                  key={t}
-                  label={`Ir a ${t}`}
-                  variant="outline"
-                  full
-                  onPress={() => go(t)}
-                />
-              ))
-            : null}
-        </View>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -75,6 +53,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   chipText: { color: colors.primary, fontSize: typography.sizes.caption, fontWeight: typography.weights.bold, letterSpacing: 1 },
-  footer: { gap: spacing.sm, marginTop: spacing.sm, padding: spacing.md, backgroundColor: colors.greyBg, borderRadius: radius.lg },
-  meta: { fontSize: typography.sizes.small, color: colors.sub },
+  meta: { fontSize: typography.sizes.small, color: colors.sub, marginTop: spacing.md },
 });

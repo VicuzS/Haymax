@@ -1,4 +1,5 @@
 // Sesión persistente en el dispositivo (Fase 4): cuenta o modo invitado.
+// En modo cuenta guarda el token JWT de haymax-api.
 // Si AsyncStorage no estuviera disponible (entornos raros), degrada a memoria.
 let memoria = null;
 
@@ -10,8 +11,13 @@ async function safe(fn, fallback) {
   }
 }
 
-export async function guardarSesion({ modo = "invitado", usuario = "Rosa Ticlla" } = {}) {
-  const datos = { modo, usuario, en: Date.now() };
+export async function guardarSesion({
+  modo = "invitado",
+  usuario = "Rosa Ticlla",
+  token = null,
+  distrito = null,
+} = {}) {
+  const datos = { modo, usuario, token, distrito, en: Date.now() };
   memoria = datos;
   await safe(async () => {
     const AS = (await import("@react-native-async-storage/async-storage")).default;

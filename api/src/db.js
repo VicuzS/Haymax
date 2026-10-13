@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS favoritos (
   guardado_en TEXT NOT NULL,
   PRIMARY KEY (usuario_id, receta_id)
 );
+
+CREATE TABLE IF NOT EXISTS compras (
+  id TEXT PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  cantidad TEXT NOT NULL,
+  seccion TEXT NOT NULL,
+  listo INTEGER NOT NULL DEFAULT 0
+);
 `);
 
 // Despachadores reutilizables (evita SQL repetido en las rutas).

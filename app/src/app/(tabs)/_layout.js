@@ -64,6 +64,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="despensa" options={{ title: "Despensa" }} />
       <Tabs.Screen name="planificar" options={{ title: "Planificar" }} />
       <Tabs.Screen name="ajustes" options={{ title: "Ajustes" }} />
+      {/* Pantallas apiladas (/screen/DES-03...): se renderizan dentro de la
+          barra inferior, pero sin pestaña propia. */}
+      <Tabs.Screen name="screen/[id]" options={{ href: null, title: "" }} />
     </Tabs>
   );
 }

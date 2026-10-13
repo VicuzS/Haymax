@@ -5,9 +5,10 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { recetaById } from "../lib/domain";
-import { mealPlanMock, descontarDespensa } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getPreparar, descontarAlCocinar } from "../lib/api";
 
+const NOMBRE = "Preparar: descontar insumos";
 const HORARIO = { almuerzo: "13:00", cena: "20:00" };
 
 const DESCUENTOS = [
@@ -18,31 +19,45 @@ const DESCUENTOS = [
 ];
 
 export default function PRE_01({ receta }) {
-  const r = recetaById(receta);
-  const plan = mealPlanMock.find((m) => m.recetaId === r.id);
+  const { data, loading, error, recargar } = useApi(() => getPreparar(receta));
+  const [porciones, setPorciones] = useState(null);
+
+  if (loading) {
+    return (
+      <Screen id="PRE-01" name={NOMBRE}>
+        <K.Loading text="Preparando…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="PRE-01" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const r = data.receta;
+  const plan = data.plan;
   const encabezado = plan
     ? `${plan.comida.toUpperCase()} · ${HORARIO[plan.comida] || "13:00"}`
     : "CENA · 20:00";
-  const [porciones, setPorciones] = useState(plan ? plan.porciones : r.porciones);
+  const porc = porciones == null ? (plan ? plan.porciones : r.porciones) : porciones;
 
-  const confirmar = () => {
-    descontarDespensa(DESCUENTOS);
+  const confirmar = async () => {
+    await descontarAlCocinar(DESCUENTOS);
     go("PRE-02");
   };
 
   return (
-    <Screen id="PRE-01" name="Preparar: descontar insumos">
+    <Screen id="PRE-01" name={NOMBRE}>
       <K.SectionTitle title={encabezado} />
-      <K.Card
-        thumb={r.imagen}
-        title={r.nombre}
-        sub={`${porciones} porciones planificadas`}
-      />
+      <K.Card thumb={r.imagen} title={r.nombre} sub={`${porc} porciones planificadas`} />
       <View style={styles.rows}>
         <K.EditStepper
           label="Porciones preparadas"
-          qty={porciones}
-          onChange={(d) => setPorciones((p) => Math.max(1, Math.min(12, p + d)))}
+          qty={porc}
+          onChange={(d) => setPorciones(Math.max(1, Math.min(12, porc + d)))}
         />
       </View>
 

@@ -1,9 +1,14 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { colors, spacing, typography } from "../tokens";
+import { SHOW_DEV_TAGS } from "../config";
 import Icon from "./Icon";
 
 // Cabecera de las pantallas (equivale al AppBar del prototipo Figma).
+// Sin SHOW_DEV_TAGS solo queda el botón atrás (pantallas apiladas);
+// en pestañas no se renderiza ninguna barra.
 export default function AppBar({ title, crumb, onBack, right }) {
+  const etiquetas = SHOW_DEV_TAGS;
+  if (!etiquetas && !onBack && !right) return null;
   return (
     <View style={styles.bar}>
       <View style={styles.side}>
@@ -12,12 +17,16 @@ export default function AppBar({ title, crumb, onBack, right }) {
             <Icon name="chevron-back" size={24} color={colors.primary} />
           </Pressable>
         ) : null}
-        <View>
-          {crumb ? <Text style={styles.crumb}>{crumb}</Text> : null}
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-        </View>
+        {etiquetas ? (
+          <View>
+            {crumb ? <Text style={styles.crumb}>{crumb}</Text> : null}
+            {title ? (
+              <Text style={styles.title} numberOfLines={1}>
+                {title}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
       {right ? <View style={styles.side}>{right}</View> : null}
     </View>

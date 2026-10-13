@@ -5,41 +5,59 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { pantryMock } from "../data/mock";
+import useApi from "../hooks/useApi";
+import { getDespensa, actualizarInsumo, eliminarInsumo } from "../lib/api";
+
+const NOMBRE = "Detalle de insumo (editar)";
 
 export default function DES_02({ insumo }) {
-  const item = pantryMock.find((p) => p.id === insumo) || pantryMock[0];
-  const [cantidad, setCantidad] = useState(String(item.cantidad));
-  const [unidad, setUnidad] = useState(item.unidad);
-  const [vence, setVence] = useState(item.fechaVencimiento.split("-").reverse().join("/"));
+  const { data, loading, error, recargar } = useApi(getDespensa);
+  const [cantidad, setCantidad] = useState("");
+  const [unidad, setUnidad] = useState("");
+  const [vence, setVence] = useState("");
 
-  const guardar = () => {
-    const idx = pantryMock.findIndex((p) => p.id === item.id);
-    if (idx >= 0) {
-      const base = pantryMock[idx];
-      const n = Number(cantidad);
-      pantryMock.splice(idx, 1, {
-        ...base,
-        cantidad: !Number.isNaN(n) && n > 0 ? n : base.cantidad,
-        unidad: unidad.trim() || base.unidad,
-      });
-    }
+  if (loading) {
+    return (
+      <Screen id="DES-02" name={NOMBRE}>
+        <K.Loading text="Cargando insumo…" />
+      </Screen>
+    );
+  }
+  if (error) {
+    return (
+      <Screen id="DES-02" name={NOMBRE}>
+        <K.ErrorState onRetry={recargar} />
+      </Screen>
+    );
+  }
+
+  const item = data.items.find((p) => p.id === insumo) || data.items[0];
+  const cant0 = cantidad || String(item.cantidad);
+  const uni0 = unidad || item.unidad;
+  const vence0 = vence || item.fechaVencimiento.split("-").reverse().join("/");
+
+  const guardar = async () => {
+    const n = Number(cant0);
+    await actualizarInsumo(item.id, {
+      cantidad: !Number.isNaN(n) && n > 0 ? n : item.cantidad,
+      unidad: uni0.trim() || item.unidad,
+      fechaVencimiento: vence0,
+    });
     go("DES-01");
   };
 
-  const eliminar = () => {
-    const i = pantryMock.findIndex((p) => p.id === item.id);
-    if (i >= 0) pantryMock.splice(i, 1);
+  const eliminar = async () => {
+    await eliminarInsumo(item.id);
     go("DES-01");
   };
 
   return (
-    <Screen id="DES-02" name="Detalle de insumo (editar)">
+    <Screen id="DES-02" name={NOMBRE}>
       <K.SectionTitle title={item.nombre} action="Editar" />
       <View style={styles.rows}>
-        <K.InputField placeholder="Cantidad" value={cantidad} onChangeText={setCantidad} keyboardType="numeric" />
-        <K.InputField placeholder="Unidad" value={unidad} onChangeText={setUnidad} />
-        <K.InputField placeholder="Vence en (aaaa-mm-dd)" value={vence} onChangeText={setVence} />
+        <K.InputField placeholder="Cantidad" value={cant0} onChangeText={setCantidad} keyboardType="numeric" />
+        <K.InputField placeholder="Unidad" value={uni0} onChangeText={setUnidad} />
+        <K.InputField placeholder="Vence en (aaaa-mm-dd)" value={vence0} onChangeText={setVence} />
       </View>
       <K.Note text="Avisaremos 2 días antes de que venza." />
       <Button label="Guardar cambios" full onPress={guardar} />
