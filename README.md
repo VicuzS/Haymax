@@ -34,31 +34,56 @@ Es una aplicación móvil diseñada para el hogar peruano que reduce el desperdi
 
 ## 🛠️ Stack Tecnológico
 
-* **Frontend Móvil:** Flutter / React Native
-* **Backend:** Node.js (Express) / Python (FastAPI)
-* **Base de Datos:** PostgreSQL + Redis
-* **Servicios OCR:** Google Cloud Vision API / Tesseract
+* **Frontend Móvil:** React Native + Expo (Expo Router)
+* **Backend:** Node.js (Express) + JWT
+* **Base de Datos:** SQLite (`better-sqlite3`)
+* **Servicios OCR:** pendiente de integración (Google Cloud Vision API / Tesseract previstos)
 * **Diseño:** Figma
 
 ---
 
 ## 🚀 Inicio Rápido
 
-1. Clonar repositorio:
+Requisitos: **Node.js 18+** y **npm**. El repositorio tiene dos carpetas: `api/`
+(backend) y `app/` (frontend móvil).
+
+> En Windows, si PowerShell bloquea `npm`/`npx`, antepón `cmd /c` a cada comando.
+
+### 1. Clonar el repositorio
+
 ```bash
-   git clone https://github.com/tu-usuario/haymax-app.git
-   cd haymax-app
-```
-2. Backend:
-```bash
-   cd src/backend
-   npm install
-   npm run dev
+git clone https://github.com/tu-usuario/haymax-app.git
+cd haymax-app
 ```
 
-3. Frontend Móvil:
+### 2. Backend (API)
+
 ```bash
-   cd src/mobile
-   flutter pub get
-   flutter run
+cd api
+cp .env.example .env        # en Windows: copy .env.example .env
+npm install
+npm run seed                # carga datos de demostración (idempotente)
+npm run dev                 # API en http://localhost:4000/api/salud
 ```
+
+### 3. Frontend móvil (Expo)
+
+En otra terminal:
+
+```bash
+cd app
+npm install
+npx expo start              # `w` = web, `a` = Android, `i` = iOS
+```
+
+Por defecto el app apunta a `http://localhost:4000/api`. Para probarlo en un
+celular físico, crea `app/.env` con `EXPO_PUBLIC_API_URL=http://<IP-LOCAL>:4000/api`.
+
+### 4. Usuario de demostración
+
+```
+usuario: rosa@haymax.pe
+clave:   haymax123
+```
+
+Guía detallada del backend: [`documentos/GUIA_EQUIPO_BACKEND.md`](documentos/GUIA_EQUIPO_BACKEND.md).
