@@ -6,6 +6,7 @@ require("./db"); // crea el esquema si no existe
 const authRoutes = require("./routes/auth");
 const recetasRoutes = require("./routes/recetas");
 const despensaRoutes = require("./routes/despensa");
+const insumosRoutes = require("./routes/insumos");
 const planesRoutes = require("./routes/planes");
 const favoritosRoutes = require("./routes/favoritos");
 const comprasRoutes = require("./routes/compras");
@@ -21,6 +22,7 @@ app.get("/api/salud", (_req, res) =>
 app.use("/api/auth", authRoutes);
 app.use("/api/recetas", recetasRoutes);
 app.use("/api/despensa", despensaRoutes);
+app.use("/api/insumos", insumosRoutes);
 app.use("/api/planes", planesRoutes);
 app.use("/api/favoritos", favoritosRoutes);
 app.use("/api/compras", comprasRoutes);
@@ -32,6 +34,10 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`haymax-api escuchando en http://localhost:${PORT}/api/salud`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`haymax-api escuchando en http://localhost:${PORT}/api/salud`);
+  });
+}
+
+module.exports = app;
