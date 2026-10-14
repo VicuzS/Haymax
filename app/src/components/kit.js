@@ -1,7 +1,10 @@
 
-import { View, Text, Pressable, StyleSheet, Image, TextInput } from "react-native";
+import { useState } from "react";
+import { View, Text, Pressable, StyleSheet, TextInput } from "react-native";
+import { Image } from "expo-image";
 import { colors, radius, spacing, typography, shadows } from "../tokens";
 import Icon, { resolveIconName, isEmoji } from "./Icon";
+import { resolverImagen } from "../lib/imagenes";
 
 // Kit de UI: un componente por primitiva del wireframe (prototipo/code.js).
 // Las pantallas reales (Fases 1-4) se componen SOLO con estos elementos.
@@ -58,7 +61,7 @@ export function TextLine({ text, color, bold }) {
 export function Card({ thumb, title, sub, subColor, right, onPress }) {
   const body = (
     <View style={styles.card}>
-      {thumb ? <Image source={{ uri: thumb }} style={styles.cardThumb} /> : null}
+      {thumb ? <Image source={resolverImagen(thumb)} style={styles.cardThumb} contentFit="cover" /> : null}
       <View style={styles.cardMain}>
         <Text style={styles.cardTitle}>{title}</Text>
         {sub ? <Text style={[styles.cardSub, subColor ? { color: subColor } : null]}>{sub}</Text> : null}
@@ -348,8 +351,19 @@ export function LinkText({ label, align, onPress }) {
 }
 
 function PhotoPlaceholder({ height, imagen }) {
-  if (imagen) {
-    return <Image source={{ uri: imagen }} style={[styles.photoImg, { height }]} resizeMode="cover" />;
+  const [error, setError] = useState(false);
+  const fuente = resolverImagen(imagen);
+  if (fuente && !error) {
+    return (
+      <Image
+        source={fuente}
+        style={[styles.photoImg, { height }]}
+        contentFit="cover"
+        transition={200}
+        cachePolicy="memory-disk"
+        onError={() => setError(true)}
+      />
+    );
   }
   return (
     <View style={[styles.photoPh, { height }]}>
