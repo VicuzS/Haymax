@@ -1,51 +1,84 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
-import { guardarSesion } from "../lib/api";
-
-const DISTRITOS = ["Surquillo", "Miraflores", "Lima Norte"];
+import useApi from "../hooks/useApi";
+import { getPerfil, actualizarPerfil } from "../lib/api";
 
 export default function ACC_04() {
-  const [q, setQ] = useState("");
-  const [distrito, setDistrito] = useState("Surquillo");
+  const { data: perfil, loading, error: errorCarga, recargar } = useApi(getPerfil);
+  const [nombre, setNombre] = useState("");
+  const [distrito, setDistrito] = useState("");
+  const [fotoUrl, setFotoUrl] = useState("");
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
 
-  const empezar = async () => {
-    await guardarSesion({ modo: "invitado", distrito });
-    go("INI-02");
+  useEffect(() => {
+    if (!perfil) return;
+    setNombre(perfil.nombre || "");
+    setDistrito(perfil.distrito || "");
+    setFotoUrl(perfil.foto_url || "");
+  }, [perfil]);
+
+  const guardar = async () => {
+    if (!nombre.trim()) {
+      setError("El nombre no puede estar vacío.");
+      return;
+    }
+    setGuardando(true);
+    setError("");
+    setGuardado(false);
+    try {
+      await actualizarPerfil({
+        nombre: nombre.trim(),
+        distrito: distrito.trim() || null,
+        foto_url: fotoUrl.trim() || null,
+      });
+      setGuardado(true);
+    } catch (e) {
+      setError((e && e.message) || "No se pudo guardar el perfil.");
+    } finally {
+      setGuardando(false);
+    }
   };
 
   return (
-    <Screen id="ACC-04" name="Onboarding: distrito e integrantes">
-      <K.SectionTitle title="¿Dónde vives?" />
-      <K.InputField placeholder="Busca tu distrito…" value={q} onChangeText={setQ} />
-      <View style={styles.rows}>
-        {DISTRITOS.filter((d) => d.toLowerCase().includes(q.trim().toLowerCase())).map((d) => (
-          <K.Row
-            key={d}
-            label={d}
-            value={distrito === d ? "✓" : ""}
-            icon="📍"
-            onPress={() => setDistrito(d)}
-          />
-        ))}
-      </View>
-
-      <K.SectionTitle title="¿Quién cocina en casa?" />
-      <View style={styles.rows}>
-        <K.Row label="Rosa Ticlla" value="Admin" icon="R" />
-        <K.Row label="Diego Lopez" value="Miembro" valueColor="#9E9E9E" icon="D" />
-      </View>
-      <Button label="+ Agregar integrante" variant="outline" full onPress={() => go("AJU-03")} />
-
-      <Button label="Empezar" full onPress={empezar} />
-      <K.LinkText label="¿Ya tienes cuenta? Inicia sesión" onPress={() => go("ACC-02")} />
-      <K.LinkText label="Ya usé Haymax antes · ir a mi inicio" onPress={() => go("INI-01")} />
+    <Screen id="ACC-04" name="Mi perfil">
+      {loading ? <K.Loading text="Cargando tu perfil…" /> : null}
+      {errorCarga ? (
+        <View style={styles.rows}>
+          <K.Note text="No se pudo cargar el perfil de tu cuenta." />
+          <Button label="Reintentar" variant="outline" full onPress={recargar} />
+        </View>
+      ) : null}
+      {!loading && !errorCarga && perfil ? (
+        <>
+          <K.TextLine text="Actualiza tus datos personales. Los cambios se guardan en tu cuenta." />
+          <View style={styles.rows}>
+            <K.InputField placeholder="Nombre completo" value={nombre} onChangeText={setNombre} autoCapitalize="words" />
+            <K.TextLine text={`Correo: ${perfil.email || "Sin correo"}`} />
+            <K.InputField placeholder="Distrito" value={distrito} onChangeText={setDistrito} autoCapitalize="words" />
+            <K.InputField
+              placeholder="URL de foto (opcional)"
+              value={fotoUrl}
+              onChangeText={setFotoUrl}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          {error ? <K.Note text={error} /> : null}
+          {guardado ? <K.TextLine text="Perfil actualizado correctamente." color="#287A48" bold /> : null}
+          <Button label={guardando ? "Guardando…" : "Guardar cambios"} full onPress={guardar} disabled={guardando} />
+          <Button label="Volver a ajustes" variant="outline" full onPress={() => go("AJU-01")} />
+        </>
+      ) : null}
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ rows: { gap: 0, marginBottom: spacing.xs } });
+const styles = StyleSheet.create({ rows: { gap: spacing.sm, marginBottom: spacing.xs } });

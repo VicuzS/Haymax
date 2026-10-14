@@ -1,5 +1,7 @@
-// Autenticación JWT compartida por las rutas protegidas.
+// Autenticación JWT compartida por las rutas protegidas, con revocación al cerrar sesión.
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { q } = require("../db");
 
 const SECRETO = () => process.env.JWT_SECRET || "dev-secret";
 
@@ -12,31 +14,48 @@ function firmar(usuario) {
   );
 }
 
-// Exige Authorization: Bearer <token>.
-function auth(req, res, next) {
-  const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: "token requerido" });
-  try {
-    req.user = jwt.verify(token, SECRETO());
-    next();
-  } catch (_e) {
-    res.status(401).json({ error: "token inválido o expirado" });
-  }
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-// Igual que auth, pero sin bloquear: adjunta req.user si el token es válido.
+function estaRevocado(token) {
+  return !!q.get("SELECT token_hash FROM sesiones_revocadas WHERE token_hash = ?", hashToken(token));
+}
+
+// Exige Authorization: Bearer <token> y rechaza JWT revocados.
+function auth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
+  if (!token) return res.status(401).json({ error: "token requerido" });
+  let payload;
+  try {
+    payload = jwt.verify(token, SECRETO());
+  } catch (_e) {
+    return res.status(401).json({ error: "token inválido o expirado" });
+  }
+  try {
+    if (estaRevocado(token)) return res.status(401).json({ error: "sesión cerrada; inicia sesión nuevamente" });
+  } catch (error) {
+    return next(error);
+  }
+  req.user = payload;
+  req.authToken = token;
+  return next();
+}
+
+// Permite consultar contenido público; si el JWT es válido, también agrega req.user.
 function authOpcional(req, _res, next) {
   const header = req.headers.authorization || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
   if (token) {
     try {
-      req.user = jwt.verify(token, SECRETO());
+      const payload = jwt.verify(token, SECRETO());
+      if (!estaRevocado(token)) req.user = payload;
     } catch (_e) {
-      /* token inválido: se ignora y sigue como invitado */
+      // Un token opcional inválido no da acceso a datos personales.
     }
   }
   next();
 }
 
-module.exports = { auth, authOpcional, firmar };
+module.exports = { auth, authOpcional, firmar, hashToken };

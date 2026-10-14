@@ -1,3 +1,4 @@
+
 import { View, Text, Pressable, StyleSheet, Image, TextInput } from "react-native";
 import { colors, radius, spacing, typography, shadows } from "../tokens";
 import Icon, { resolveIconName, isEmoji } from "./Icon";
@@ -262,7 +263,7 @@ export function RadioOption({ title, sub, selected, onPress }) {
   );
 }
 
-export function InputField({ placeholder, value, onChangeText, keyboardType }) {
+export function InputField({ placeholder, value, onChangeText, keyboardType, secureTextEntry, autoCapitalize, autoCorrect, editable = true }) {
   if (onChangeText) {
     return (
       <View style={styles.input}>
@@ -273,6 +274,10 @@ export function InputField({ placeholder, value, onChangeText, keyboardType }) {
           value={value}
           onChangeText={onChangeText}
           keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
+          editable={editable}
         />
       </View>
     );

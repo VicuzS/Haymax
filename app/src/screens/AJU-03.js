@@ -4,18 +4,23 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
+import useApi from "../hooks/useApi";
+import { getSesion } from "../lib/api";
 
 export default function AJU_03() {
+  const { data: sesion, loading } = useApi(getSesion);
+  const nombre = (sesion && (sesion.nombre || sesion.usuario)) || "Mi cuenta";
+  const inicial = nombre.charAt(0).toUpperCase();
+
   return (
     <Screen id="AJU-03" name="Integrantes del hogar">
       <K.SectionTitle title="Integrantes del hogar" />
       <View style={styles.rows}>
-        <K.Row label="Rosa Ticlla" value="Admin" icon="R" />
-        <K.Row label="Diego Lopez" value="Miembro" valueColor="#9E9E9E" icon="D" />
+        <K.Row label={loading ? "…" : nombre} value="Admin" icon={inicial} />
       </View>
-      <Button label="Invitar por enlace" variant="outline" full onPress={() => go("AJU-01")} />
-      <K.Note text="Fase 2: la despensa se sincroniza entre los celulares del hogar." />
-      <Button label="Guardar" full onPress={() => go("AJU-01")} />
+      <K.Note text="Fase 2: invitar a más integrantes y compartir la despensa entre celulares." />
+      <Button label="Invitar por enlace (próximamente)" variant="outline" full onPress={() => {}} disabled />
+      <Button label="Volver a ajustes" full onPress={() => go("AJU-01")} />
     </Screen>
   );
 }

@@ -1,28 +1,131 @@
+import { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
-import { colors } from "../tokens";
+import { spacing } from "../tokens";
+import { registrarUsuario } from "../lib/api";
 
 export default function ACC_03() {
-  return (
-    <Screen id="ACC-03" name="Qué hace Haymax + permisos">
-      <K.SectionTitle title="Qué hace Haymax" />
-      <K.TextLine text="Cocina con lo que ya tienes y reduce el desperdicio de comida." />
+  const [nombre, setNombre] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [clave, setClave] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [distrito, setDistrito] = useState("");
+  const [error, setError] = useState("");
+  const [cargando, setCargando] = useState(false);
 
-      <K.SectionTitle title="Permisos que necesitamos" />
-      <View style={styles.rows}>
-        <K.Row label="Cámara" value="Requerido" icon="📷" />
-        <K.Row label="Notificaciones" value="Requerido" icon="🔔" />
-        <K.Row label="Ubicación" value="Opcional" valueColor={colors.muted} icon="📍" />
+  const crearCuenta = async () => {
+    const email = correo.trim().toLowerCase();
+    if (!nombre.trim() || !email || !clave) {
+      setError("Completa tu nombre, correo y contraseña.");
+      return;
+    }
+    if (clave.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (clave !== confirmar) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setCargando(true);
+    setError("");
+    try {
+      await registrarUsuario({ nombre, email, password: clave, distrito });
+      go("INI-01");
+    } catch (e) {
+      const msg = String((e && e.message) || "");
+      const sinRed = /fetch|failed|network|conectar/i.test(msg);
+      setError(sinRed ? "No se pudo conectar con el servidor. Revisa que la API esté activa." : msg || "No se pudo crear la cuenta.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+    return (
+    <Screen id="ACC-03" name="Crear cuenta">
+      <View style={styles.wrap}>
+        <View style={styles.intro}>
+          <K.TextLine text="Regístrate en Haymax" bold />
+          <K.TextLine text="Tu cuenta guardará tu perfil, despensa y planificación." />
+        </View>
+
+        <View style={styles.form}>
+          <K.InputField
+            placeholder="Nombre completo"
+            value={nombre}
+            onChangeText={setNombre}
+            autoCapitalize="words"
+          />
+          <K.InputField
+            placeholder="Correo electrónico"
+            value={correo}
+            onChangeText={setCorreo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <K.InputField
+            placeholder="Contraseña (mínimo 8 caracteres)"
+            value={clave}
+            onChangeText={setClave}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <K.InputField
+            placeholder="Repite la contraseña"
+            value={confirmar}
+            onChangeText={setConfirmar}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <K.InputField
+            placeholder="Distrito (opcional)"
+            value={distrito}
+            onChangeText={setDistrito}
+            autoCapitalize="words"
+          />
+        </View>
+
+        {error ? <K.Note text={error} /> : null}
+
+        <Button
+          label={cargando ? "Creando cuenta…" : "Crear cuenta"}
+          full
+          onPress={crearCuenta}
+          disabled={cargando}
+        />
+
+        <View style={styles.footer}>
+          <K.LinkText
+            label="¿Ya tienes cuenta? Inicia sesión"
+            align="CENTER"
+            onPress={() => go("ACC-02")}
+          />
+        </View>
       </View>
-
-      <K.Note text="Sin la cámara aún puedes registrar insumos de forma manual." />
-      <Button label="Continuar" full onPress={() => go("ACC-04")} />
-      <Button label="Omitir por ahora" variant="outline" full onPress={() => go("ACC-04")} />
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({ rows: { gap: 0 } });
+const styles = StyleSheet.create({
+  wrap: {
+    paddingTop: 32,             // menos que login: este form es más alto
+    paddingHorizontal: spacing.sm,
+  },
+  intro: {
+    marginBottom: spacing.lg,   // 24px en lugar de 32 (form más largo)
+  },
+  form: {
+    gap: 12,
+    marginBottom: spacing.lg,
+  },
+  footer: {
+    marginTop: spacing.md,
+  },
+});

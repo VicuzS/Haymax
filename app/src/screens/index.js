@@ -1,3 +1,4 @@
+
 // Registro maestro de las 31 pantallas del inventario (cobertura 31/31).
 import { createElement } from "react";
 
@@ -37,22 +38,22 @@ export const SCREEN_IDS = [
 
 export const SCREEN_META = {
   "ACC-01": {
-    "name": "Splash",
+    "name": "Bienvenida",
     "tab": null,
     "hasFab": false
   },
   "ACC-02": {
-    "name": "Iniciar sesión / Registrarse",
+    "name": "Iniciar sesión",
     "tab": null,
     "hasFab": false
   },
   "ACC-03": {
-    "name": "Onboarding: bienvenida y permisos",
+    "name": "Crear cuenta",
     "tab": null,
     "hasFab": false
   },
   "ACC-04": {
-    "name": "Configuración inicial: distrito e integrantes",
+    "name": "Mi perfil",
     "tab": null,
     "hasFab": false
   },

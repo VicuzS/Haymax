@@ -25,13 +25,13 @@ export default function INI_01() {
     );
   }
 
-  const { hoy, plan, recetaHoy, sugerida, stats, shop, balance, atencion } = data;
+  const { hoy, primerNombre, inicial, plan, recetaHoy, sugerida, stats, shop, balance, atencion } = data;
   const comida = (plan && plan.comida) || "almuerzo";
   const porciones = (plan && plan.porciones) || recetaHoy.porciones;
 
   return (
     <Screen id="INI-01" name={NOMBRE}>
-      <K.Header title="Hola, Rosa" sub={hoy.fecha} />
+      <K.Header iniciales={inicial} title={`Hola, ${primerNombre}`} sub={hoy.fecha} />
 
       <K.Card
         thumb={recetaHoy.imagen}
