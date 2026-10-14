@@ -1,13 +1,12 @@
+
 // Capa de datos del app (Fase 5).
 //
 // Modo CUENTA (sesión con token JWT): todo va a la API real haymax-api
 // (Express + SQLite) según config.API_URL. Si la API no responde, la pantalla
 // muestra el estado de error con "Reintentar".
 //
-// Modo INVITADO / sin token: adaptador simulado sobre los mocks locales
-// (decisión B+.1: los datos del invitado viven en el dispositivo).
-//
-// Las pantallas usan las mismas firmas en ambos modos.
+// Todas las operaciones personales requieren una sesión de cuenta válida.
+// Los datos simulados se conservan para pruebas internas, pero no son una vía de acceso.
 import {
   recipesMock,
   pantryMock,
@@ -22,6 +21,7 @@ import {
 } from "../data/mock";
 import * as D from "./domain";
 import { API_URL } from "../config";
+import { router } from "expo-router";
 import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } from "./sesion";
 
 // — Estado local efímero (compartido por ambos modos) —
@@ -54,13 +54,20 @@ async function rf(path, { method = "GET", body, conToken = true } = {}) {
   } catch (_e) {
     data = {};
   }
-  if (!res.ok) throw new Error((data && data.error) || "Error " + res.status);
+  if (!res.ok) {
+    if (res.status === 401 && conToken) {
+      await borrarSesion();
+      router.replace("/screen/ACC-02");
+    }
+    throw new Error((data && data.error) || "Error " + res.status);
+  }
   return data;
 }
 
 async function enCuenta() {
   const s = await leerSesion();
-  return !!(s && s.modo === "cuenta" && s.token);
+  if (s && s.modo === "cuenta" && s.token) return true;
+  throw new Error("Inicia sesión para continuar.");
 }
 
 // — Mapeo BD (snake_case) → formas del app —
@@ -130,21 +137,11 @@ const SUGERENCIAS = [
 export async function getInicio() {
   const s = await leerSesion();
   const hoy = hoyInfo(s && s.distrito);
+  const nombreCompleto = (s && (s.nombre || s.usuario)) || "Usuario";
+  const primerNombre = nombreCompleto.split(" ")[0];
+  const inicial = primerNombre.charAt(0).toUpperCase() || "U";
 
-  if (!(await enCuenta())) {
-    const planM = mealPlanMock.find((m) => m.dia === hoy.dia) || mealPlanMock[0] || null;
-    const plan = planM ? { ...planM, receta: D.recetaById(planM.recetaId) } : null;
-    return {
-      hoy,
-      plan,
-      recetaHoy: plan ? plan.receta : D.recetaById("REC-LOMO"),
-      sugerida: recipesMock[0],
-      stats: D.pantryStats(),
-      shop: D.shoppingProgress(),
-      balance: D.balanceSemanal(),
-      atencion: pantryMock.filter((p) => p.estado !== "ok").length,
-    };
-  }
+  await enCuenta();  // garantiza que hay sesión
 
   const [recetas, planes, despensa, compras] = await Promise.all([
     rf("/recetas"),
@@ -158,6 +155,9 @@ export async function getInicio() {
   const shopList = compras.map((c) => ({ ...c, listo: !!c.listo }));
   return {
     hoy,
+    usuario: nombreCompleto,
+    primerNombre,
+    inicial,
     plan,
     recetaHoy: plan ? plan.receta : rs[0],
     sugerida: rs[0],
@@ -167,7 +167,6 @@ export async function getInicio() {
     atencion: despensa.filter((p) => p.estado !== "ok").length,
   };
 }
-
 export async function getDespensa() {
   if (!(await enCuenta())) {
     return { items: [...pantryMock], stats: D.pantryStats() };
@@ -268,27 +267,77 @@ export async function getSesion() {
   return leerSesion();
 }
 
-// — Sesión —
-export async function login(email, password) {
-  const data = await rf("/auth/login", {
-    method: "POST",
-    body: { email, password },
-    conToken: false,
-  });
-  await guardarSesionDispositivo({
-    modo: "cuenta",
-    usuario: data.user.nombre,
-    token: data.token,
-  });
+// — Autenticación y perfil —
+async function persistirAutenticacion(data) {
+  if (!data || !data.token || !data.user) {
+    throw new Error("El servidor devolvió una sesión incompleta.");
+  }
+  await guardarSesionDispositivo({ token: data.token, user: data.user });
   return data.user;
 }
 
-export async function guardarSesion(datos) {
-  await guardarSesionDispositivo(datos);
+export async function login(email, password) {
+  const data = await rf("/auth/login", {
+    method: "POST",
+    body: { email: String(email || "").trim().toLowerCase(), password },
+    conToken: false,
+  });
+  return persistirAutenticacion(data);
+}
+
+export async function registrarUsuario({ nombre, email, password, distrito } = {}) {
+  const data = await rf("/auth/registro", {
+    method: "POST",
+    body: {
+      nombre: String(nombre || "").trim(),
+      email: String(email || "").trim().toLowerCase(),
+      password,
+      distrito: String(distrito || "").trim() || null,
+    },
+    conToken: false,
+  });
+  return persistirAutenticacion(data);
+}
+
+export async function getPerfil() {
+  await enCuenta();
+  const data = await rf("/auth/yo");
+  const user = data && data.user;
+  if (!user) throw new Error("No se pudo cargar el perfil.");
+  const actual = await leerSesion();
+  await guardarSesionDispositivo({ token: actual.token, user });
+  return user;
+}
+
+export async function actualizarPerfil(cambios = {}) {
+  await enCuenta();
+  const data = await rf("/auth/perfil", {
+    method: "PUT",
+    body: {
+      nombre: cambios.nombre,
+      distrito: cambios.distrito,
+      foto_url: cambios.foto_url,
+    },
+  });
+  const user = data && data.user;
+  if (!user) throw new Error("El servidor no devolvió el perfil actualizado.");
+  const actual = await leerSesion();
+  await guardarSesionDispositivo({ token: actual.token, user });
+  return user;
 }
 
 export async function cerrarSesion() {
-  await borrarSesion();
+  const actual = await leerSesion();
+  try {
+    if (actual && actual.token) {
+      // Revoca el JWT en el servidor cuando la API está disponible.
+      await rf("/auth/logout", { method: "POST" });
+    }
+  } catch (_e) {
+    // La salida local debe completarse aunque el dispositivo esté sin conexión.
+  } finally {
+    await borrarSesion();
+  }
 }
 
 // — Escrituras —

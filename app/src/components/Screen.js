@@ -1,3 +1,4 @@
+
 import { ScrollView, View, StyleSheet } from "react-native";
 import AppBar from "./AppBar";
 import { canGoBack } from "../lib/nav";
@@ -12,7 +13,7 @@ export default function Screen({ id, name, children }) {
       <AppBar
         title={name}
         crumb={id}
-        onBack={canGoBack() ? () => router.back() : undefined}
+        onBack={!["ACC-01", "ACC-02", "ACC-03"].includes(id) && canGoBack() ? () => router.back() : undefined}
       />
       <ScrollView contentContainerStyle={styles.body}>{children}</ScrollView>
     </View>

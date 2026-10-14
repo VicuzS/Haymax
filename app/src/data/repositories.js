@@ -1,3 +1,7 @@
+/*
+Es un repositorio mock de la Fase 1 (antes de tener backend). Todos los datos vienen de src/lib/api.js contra la API real. Puedes dejarlo así o borrar el archivo completo, no afecta.
+*/
+
 import { recipesMock, pantryMock, mealPlanMock, favoritesMock } from "./mock";
 
 // Fase 1: mock local. Fase 2: poner USE_API = true y definir EXPO_PUBLIC_API_URL.

@@ -1,3 +1,4 @@
+
 // Conexión SQLite (better-sqlite3) y creación del esquema.
 //
 // Decisiones de diseño:
@@ -24,6 +25,12 @@ CREATE TABLE IF NOT EXISTS usuarios (
   foto_url      TEXT,
   distrito      TEXT,
   creado_en     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sesiones_revocadas (
+  token_hash TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL,
+  revocado_en TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS hogares (
