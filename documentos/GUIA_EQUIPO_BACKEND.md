@@ -257,14 +257,22 @@ Al registrarse, el usuario recibe automáticamente un **hogar personal** (helper
 
 | Método | Ruta | Auth | Cuerpo / Query | Respuesta |
 | ------ | ---- | ---- | -------------- | --------- |
-| GET | `/recetas` | opcional | `?q=&distrito=` | `[receta]` |
-| GET | `/recetas/disponibilidad` | opcional | — | `[disponibilidad]` |
+| GET | `/recetas` | opcional | `?q=&distrito=&dificultad=&orden=&dir=&page=&limit=` | `[receta]` + cabeceras `X-Total-Count`, `X-Page`, `X-Limit` |
+| GET | `/recetas/disponibilidad` | opcional | `?orden=cobertura\|precio\|tiempo&solo=disponibles` | `[disponibilidad]` |
 | GET | `/recetas/:id` | opcional | — | `receta` |
 | POST | `/recetas` | sí | `{ id, titulo\|nombre, ingredientes[], ... }` | `201 receta` |
+| PUT | `/recetas/:id` | sí | `{ titulo?, imagen?, precio?, ingredientes?, ... }` (parcial) | `200 receta` |
 | GET | `/favoritos` | sí | — | `[receta]` |
+| GET | `/favoritos/ids` | sí | — | `["REC-LOMO", ...]` |
 | POST | `/favoritos` | sí | `{ receta_id }` | `201 { receta_id, esFavorito }` |
 | POST | `/favoritos/:recetaId` | sí | — | `201 { receta_id, esFavorito }` |
 | DELETE | `/favoritos/:recetaId` | sí | — | `204` |
+
+- `orden` admite `nombre`, `precio`, `tiempo`, `dificultad`, `calorias`; `dir` es `asc`/`desc`;
+  `limit` está topado a 100 y `page` empieza en 1. Sin `limit`, devuelve todo.
+- `disponibilidad` calcula la `cobertura` comparando **cantidades y unidades**
+  (peso↔gramos, volumen↔ml) contra la despensa del hogar y empareja por
+  `producto_id` o por nombre normalizado (ignora acentos). Ordena por cobertura desc.
 
 ```jsonc
 // receta
@@ -345,14 +353,24 @@ y `seed.js` son compartidos: coordinad antes de tocarlos.
 ### Persona 3 — Recetas, ingredientes y favoritos
 
 - **Archivos:** `src/routes/recetas.js`, `src/routes/favoritos.js`.
-- **Endpoints:** `/recetas` (+`/disponibilidad`, `/:id`, POST), `/favoritos`
-  (GET/POST/DELETE).
-- **Cubre:** ingesta de ingredientes estructurados, búsqueda, y el **motor de
-  disponibilidad** que compara cada receta con la despensa del hogar.
-- **Tareas extra:** paginación/orden, imágenes, y afinar el matching de
-  ingredientes (normalización de acentos y unidades).
+- **Endpoints:** `/recetas` (`?q=&distrito=&dificultad=&orden=&dir=&page=&limit=`),
+  `/recetas/disponibilidad`, `/recetas/:id`, POST y **PUT** `/recetas/:id`;
+  `/favoritos` (GET, GET `/ids`, POST, DELETE).
+- **Cubre:** ingesta de ingredientes estructurados, búsqueda, paginación/orden,
+  edición parcial (incluida la imagen) y el **motor de disponibilidad** que
+  compara cada receta con la despensa del hogar.
+- **Implementado (extras):**
+  - Paginación con `page`/`limit` (topadas a 100) y total en `X-Total-Count`.
+  - Orden blanco por `nombre`, `precio`, `tiempo`, `dificultad`, `calorias`.
+  - Motor afinado: empareja ingredientes por `producto_id` y, si no, por nombre
+    normalizado (sin acentos) y **cobertura por cantidades/unidades**
+    (peso↔gramos, volumen↔ml); los ingredientes opcionales no cuentan.
+  - `PUT /recetas/:id` reemplaza ingredientes de forma **atómica** (transacción) e
+    ignora `producto_id` inexistentes para no romper la llave foránea.
+  - `GET /favoritos/ids` para marcar corazones sin traer recetas completas.
 - **Aceptación:** `disponibilidad` reporta `cobertura` y `faltantes` coherentes;
-  POST de receta persiste ingredientes.
+  POST de receta persiste ingredientes; PUT actualiza imagen y precio sin perder
+  los demás campos.
 
 ### Persona 4 — Planificación y compras
 

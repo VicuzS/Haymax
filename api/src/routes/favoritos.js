@@ -27,6 +27,14 @@ function agregar(usuarioId, recetaId, res) {
   res.status(201).json({ receta_id: recetaId, esFavorito: true });
 }
 
+// GET /api/favoritos/ids  -> solo los ids (ligero, para marcar corazones)
+router.get("/ids", (req, res) => {
+  const ids = q
+    .all("SELECT receta_id FROM favoritos WHERE usuario_id = ? ORDER BY guardado_en DESC", req.user.id)
+    .map((f) => f.receta_id);
+  res.json(ids);
+});
+
 // GET /api/favoritos  -> recetas completas favoritas del usuario
 router.get("/", (req, res) => {
   const recetas = q.all(

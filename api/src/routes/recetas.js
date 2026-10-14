@@ -1,10 +1,21 @@
-// Persona 3 — Recetas y motor de disponibilidad.
+// Persona 3 — Recetas, ingredientes y motor de disponibilidad.
 const express = require("express");
-const { q, hogarDe } = require("../db");
+const { db, q, hogarDe } = require("../db");
 const { authOpcional, auth } = require("../middleware/auth");
-const { mapReceta, norm, textoIngrediente } = require("../utils");
+const { mapReceta, aBase, mismoProducto, textoIngrediente } = require("../utils");
 
 const router = express.Router();
+
+// Columnas blancas para ordenar (evita inyección en ORDER BY).
+const ORDEN = {
+  nombre: "titulo",
+  titulo: "titulo",
+  precio: "precio",
+  tiempo: "tiempo_preparacion_min",
+  minutos: "tiempo_preparacion_min",
+  dificultad: "dificultad",
+  calorias: "nutri_calorias",
+};
 
 function ingredientesDe(recetaId) {
   return q.all(
@@ -20,23 +31,80 @@ function favoritosDe(usuarioId) {
   );
 }
 
-// GET /api/recetas?q=pollo&distrito=Surquillo
+// Reemplaza los ingredientes de una receta de forma atómica.
+// Si se envía un `producto_id` que no existe en el catálogo, se ignora (queda null)
+// para no romper la llave foránea.
+const insertarIngredientes = db.transaction((recetaId, lista) => {
+  q.run("DELETE FROM receta_ingredientes WHERE receta_id = ?", recetaId);
+  (lista || []).forEach((it, idx) => {
+    const obj = typeof it === "string"
+      ? { nombre: it, cantidad: 1, unidad_medida: "und" }
+      : {
+          nombre: it.nombre,
+          cantidad: it.cantidad,
+          unidad_medida: it.unidad_medida || it.unidad,
+        };
+    let productoId = (typeof it === "object" && it && it.producto_id) || null;
+    if (productoId != null && !q.get("SELECT 1 FROM catalogo_productos WHERE id = ?", productoId)) {
+      productoId = null;
+    }
+    q.run(
+      `INSERT INTO receta_ingredientes (receta_id, producto_id, nombre, cantidad, unidad_medida, opcional, orden)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      recetaId,
+      productoId,
+      obj.nombre,
+      obj.cantidad != null ? obj.cantidad : 1,
+      obj.unidad_medida || "und",
+      typeof it === "object" && it && it.opcional ? 1 : 0,
+      idx
+    );
+  });
+});
+
+// GET /api/recetas?q=pollo&distrito=Surquillo&dificultad=facil&orden=precio&dir=asc&page=1&limit=20
+// Devuelve un array (compatible con el app); el total va en la cabecera X-Total-Count.
 router.get("/", authOpcional, (req, res) => {
-  const { q: term, distrito } = req.query;
+  const { q: term, distrito, dificultad } = req.query;
   const filtros = ["publica = 1"];
   const args = [];
   if (term) {
-    filtros.push("titulo LIKE ?");
-    args.push(`%${term}%`);
+    filtros.push("(titulo LIKE ? OR descripcion LIKE ?)");
+    args.push(`%${term}%`, `%${term}%`);
   }
   if (distrito) {
     filtros.push("(distrito IS NULL OR distrito = ?)");
     args.push(distrito);
   }
+  if (dificultad) {
+    filtros.push("dificultad = ?");
+    args.push(dificultad);
+  }
+  const where = filtros.join(" AND ");
+  const total = q.get(`SELECT COUNT(*) AS c FROM recetas WHERE ${where}`, ...args).c;
+
+  const col = ORDEN[String(req.query.orden || "").toLowerCase()] || "titulo";
+  const dir = String(req.query.dir || "").toLowerCase() === "desc" ? "DESC" : "ASC";
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 100);
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+  let paginado = "";
+  const paginaArgs = [];
+  if (limit > 0) {
+    paginado = " LIMIT ? OFFSET ?";
+    paginaArgs.push(limit, (page - 1) * limit);
+  }
+
   const rows = q.all(
-    `SELECT * FROM recetas WHERE ${filtros.join(" AND ")} ORDER BY titulo`,
-    ...args
+    `SELECT * FROM recetas WHERE ${where} ORDER BY ${col} ${dir}${paginado}`,
+    ...args,
+    ...paginaArgs
   );
+
+  res.set("X-Total-Count", String(total));
+  res.set("X-Page", String(page));
+  res.set("X-Limit", String(limit));
+
   const favs = favoritosDe(req.user && req.user.id);
   const porReceta = new Map();
   for (const i of q.all("SELECT * FROM receta_ingredientes ORDER BY receta_id, orden, id")) {
@@ -50,48 +118,92 @@ router.get("/", authOpcional, (req, res) => {
   );
 });
 
-// GET /api/recetas/disponibilidad  (cruza recetas con la despensa del hogar)
+// — Motor de disponibilidad —
+
+// Despensa del hogar indexada por producto y por nombre.
+function despensaDelHogar(hogarId) {
+  const lista = hogarId
+    ? q.all(
+        "SELECT producto_id, nombre, cantidad, unidad_medida FROM despensa WHERE hogar_id = ?",
+        hogarId
+      )
+    : [];
+  const porProducto = new Map();
+  for (const d of lista) {
+    if (d.producto_id != null && !porProducto.has(d.producto_id)) porProducto.set(d.producto_id, d);
+  }
+  return { porProducto, lista };
+}
+
+function buscarEnCasa(ing, casa) {
+  if (ing.producto_id != null && casa.porProducto.has(ing.producto_id)) {
+    return casa.porProducto.get(ing.producto_id);
+  }
+  return casa.lista.find((d) => mismoProducto(d.nombre, ing.nombre)) || null;
+}
+
+// Cuánto de un ingrediente está cubierto (0..1) según la despensa.
+function evaluarIngrediente(ing, casa) {
+  const enCasa = buscarEnCasa(ing, casa);
+  if (!enCasa) return { cubierto: 0, falta: textoIngrediente(ing) };
+
+  const req = aBase(ing.cantidad, ing.unidad_medida);
+  const disp = aBase(enCasa.cantidad, enCasa.unidad_medida);
+
+  // Unidad no cuantificable o distinta: basta con que exista.
+  if (req.bucket !== disp.bucket || req.base <= 0) {
+    return { cubierto: 1, falta: null };
+  }
+  const ratio = Math.min(1, disp.base / req.base);
+  return { cubierto: ratio, falta: ratio >= 1 ? null : textoIngrediente(ing) };
+}
+
+// GET /api/recetas/disponibilidad?orden=cobertura&solo=disponibles
 router.get("/disponibilidad", authOpcional, (req, res) => {
   const hogarId = req.user ? hogarDe(req.user.id) : null;
-  const enCasa = [];
-  if (hogarId) {
-    for (const d of q.all("SELECT nombre, cantidad, unidad_medida FROM despensa WHERE hogar_id = ?", hogarId)) {
-      enCasa.push({ clave: norm(d.nombre), cantidad: Number(d.cantidad || 0), unidad: d.unidad_medida });
+  const casa = despensaDelHogar(hogarId);
+  const recetas = q.all("SELECT * FROM recetas WHERE publica = 1");
+
+  let salida = recetas.map((r) => {
+    const ings = ingredientesDe(r.id).filter((i) => !i.opcional);
+    let cubierto = 0;
+    const faltantes = [];
+    for (const i of ings) {
+      const e = evaluarIngrediente(i, casa);
+      cubierto += e.cubierto;
+      if (e.falta) faltantes.push(e.falta);
     }
+    const cobertura = ings.length ? Math.round((cubierto / ings.length) * 100) : 100;
+    return {
+      id: r.id,
+      nombre: r.titulo,
+      imagen: r.imagen,
+      minutos: r.tiempo_preparacion_min,
+      porciones: r.porciones,
+      precio: r.precio,
+      disponible: faltantes.length === 0,
+      cobertura,
+      faltantes,
+      faltantes_count: faltantes.length,
+      nutricion: {
+        calorias: r.nutri_calorias,
+        proteinas: r.nutri_proteinas,
+        carbohidratos: r.nutri_carbohidratos,
+        grasas: r.nutri_grasas,
+        fibra: r.nutri_fibra,
+      },
+    };
+  });
+
+  if (String(req.query.solo || "") === "disponibles") {
+    salida = salida.filter((x) => x.disponible);
   }
-  const recetas = q.all("SELECT * FROM recetas WHERE publica = 1 ORDER BY titulo");
-  res.json(
-    recetas.map((r) => {
-      const ings = ingredientesDe(r.id);
-      const faltantes = [];
-      let tengo = 0;
-      for (const i of ings) {
-        const clave = norm(i.nombre);
-        const hay = enCasa.some((e) => e.clave === clave || e.clave.includes(clave) || clave.includes(e.clave));
-        if (hay) tengo += 1;
-        else faltantes.push(textoIngrediente(i));
-      }
-      return {
-        id: r.id,
-        nombre: r.titulo,
-        imagen: r.imagen,
-        minutos: r.tiempo_preparacion_min,
-        porciones: r.porciones,
-        precio: r.precio,
-        disponible: faltantes.length === 0,
-        cobertura: ings.length ? Math.round((tengo / ings.length) * 100) : 100,
-        faltantes,
-        faltantes_count: faltantes.length,
-        nutricion: {
-          calorias: r.nutri_calorias,
-          proteinas: r.nutri_proteinas,
-          carbohidratos: r.nutri_carbohidratos,
-          grasas: r.nutri_grasas,
-          fibra: r.nutri_fibra,
-        },
-      };
-    })
-  );
+  const criterio = String(req.query.orden || "cobertura");
+  if (criterio === "precio") salida.sort((a, b) => a.precio - b.precio);
+  else if (criterio === "tiempo") salida.sort((a, b) => a.minutos - b.minutos);
+  else salida.sort((a, b) => b.cobertura - a.cobertura || a.nombre.localeCompare(b.nombre));
+
+  res.json(salida);
 });
 
 // GET /api/recetas/:id
@@ -113,8 +225,11 @@ router.post("/", auth, (req, res) => {
   if (!r.id || !titulo) {
     return res.status(400).json({ error: "id y titulo son obligatorios" });
   }
+  if (q.get("SELECT id FROM recetas WHERE id = ?", r.id)) {
+    return res.status(409).json({ error: "ya existe una receta con ese id" });
+  }
   q.run(
-    `INSERT OR REPLACE INTO recetas
+    `INSERT INTO recetas
        (id, titulo, descripcion, imagen, porciones, tiempo_preparacion_min, dificultad,
         precio, distrito, nutri_calorias, nutri_proteinas, nutri_carbohidratos, nutri_grasas,
         nutri_fibra, pasos, autor_id, publica)
@@ -142,28 +257,63 @@ router.post("/", auth, (req, res) => {
       publica: r.publica === false ? 0 : 1,
     }
   );
-
-  q.run("DELETE FROM receta_ingredientes WHERE receta_id = ?", r.id);
-  const ings = r.ingredientes || [];
-  ings.forEach((it, idx) => {
-    const obj = typeof it === "string"
-      ? { nombre: it, cantidad: 1, unidad_medida: "und" }
-      : { nombre: it.nombre, cantidad: it.cantidad, unidad_medida: it.unidad_medida || it.unidad };
-    q.run(
-      `INSERT INTO receta_ingredientes (receta_id, producto_id, nombre, cantidad, unidad_medida, opcional, orden)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      r.id,
-      it.producto_id || null,
-      obj.nombre,
-      obj.cantidad != null ? obj.cantidad : 1,
-      obj.unidad_medida || "und",
-      it.opcional ? 1 : 0,
-      idx
-    );
-  });
-
+  insertarIngredientes(r.id, r.ingredientes);
   res.status(201).json(mapReceta(q.get("SELECT * FROM recetas WHERE id = ?", r.id), {
     ingredientes: ingredientesDe(r.id),
+    favorito: false,
+  }));
+});
+
+// PUT /api/recetas/:id  (edición parcial, incluida la imagen; reemplaza ingredientes si se envían)
+router.put("/:id", auth, (req, res) => {
+  const existente = q.get("SELECT * FROM recetas WHERE id = ?", req.params.id);
+  if (!existente) return res.status(404).json({ error: "receta no encontrada" });
+  const r = req.body || {};
+  q.run(
+    `UPDATE recetas SET
+       titulo                 = COALESCE(?, titulo),
+       descripcion            = COALESCE(?, descripcion),
+       imagen                 = COALESCE(?, imagen),
+       porciones              = COALESCE(?, porciones),
+       tiempo_preparacion_min = COALESCE(?, tiempo_preparacion_min),
+       dificultad             = COALESCE(?, dificultad),
+       precio                 = COALESCE(?, precio),
+       distrito               = COALESCE(?, distrito),
+       nutri_calorias         = COALESCE(?, nutri_calorias),
+       nutri_proteinas        = COALESCE(?, nutri_proteinas),
+       nutri_carbohidratos    = COALESCE(?, nutri_carbohidratos),
+       nutri_grasas           = COALESCE(?, nutri_grasas),
+       nutri_fibra            = COALESCE(?, nutri_fibra),
+       pasos                  = COALESCE(?, pasos),
+       publica                = COALESCE(?, publica)
+     WHERE id = ?`,
+    r.titulo ?? r.nombre ?? null,
+    r.descripcion ?? null,
+    r.imagen ?? null,
+    r.porciones ?? null,
+    (r.tiempo_preparacion_min ?? r.minutos) ?? null,
+    r.dificultad ?? null,
+    r.precio ?? null,
+    r.distrito ?? null,
+    (r.nutri_calorias ?? r.calorias) ?? null,
+    r.nutri_proteinas ?? null,
+    r.nutri_carbohidratos ?? null,
+    r.nutri_grasas ?? null,
+    r.nutri_fibra ?? null,
+    r.pasos ? JSON.stringify(r.pasos) : null,
+    r.publica == null ? null : r.publica ? 1 : 0,
+    req.params.id
+  );
+  if (Array.isArray(r.ingredientes)) insertarIngredientes(req.params.id, r.ingredientes);
+
+  const fav = !!(req.user && q.get(
+    "SELECT 1 FROM favoritos WHERE usuario_id = ? AND receta_id = ?",
+    req.user.id,
+    req.params.id
+  ));
+  res.json(mapReceta(q.get("SELECT * FROM recetas WHERE id = ?", req.params.id), {
+    ingredientes: ingredientesDe(req.params.id),
+    favorito: fav,
   }));
 });
 

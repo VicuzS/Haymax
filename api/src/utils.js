@@ -49,13 +49,39 @@ const ESTADO_SQL = `CASE
   WHEN date(fecha_vencimiento) <= date('now', '+3 day') THEN 'por-vencer'
   ELSE 'ok' END`;
 
+const UNIDADES_PESO_KG = ["kg", "kilo", "kilos", "kilogramo", "kilogramos"];
+const UNIDADES_PESO_G = ["g", "gr", "gramo", "gramos"];
+const UNIDADES_VOL_L = ["l", "lt", "litro", "litros"];
+const UNIDADES_VOL_ML = ["ml", "mililitros"];
+
 function bucketUnidad(u) {
   const x = norm(u);
-  if (["kg", "kilo", "kilos", "kilogramo", "kilogramos", "g", "gr", "gramo", "gramos"].includes(x)) {
-    return "peso";
-  }
-  if (["l", "lt", "litro", "litros", "ml", "mililitros"].includes(x)) return "volumen";
+  if (UNIDADES_PESO_KG.includes(x) || UNIDADES_PESO_G.includes(x)) return "peso";
+  if (UNIDADES_VOL_L.includes(x) || UNIDADES_VOL_ML.includes(x)) return "volumen";
   return "unidad";
+}
+
+// Convierte (cantidad, unidad) a una base comparable entre sí:
+// peso -> gramos, volumen -> mililitros, resto -> unidades.
+function aBase(cantidad, unidad) {
+  const n = Number(cantidad) || 0;
+  const u = norm(unidad);
+  if (UNIDADES_PESO_KG.includes(u)) return { bucket: "peso", base: n * 1000 };
+  if (UNIDADES_PESO_G.includes(u)) return { bucket: "peso", base: n };
+  if (UNIDADES_VOL_L.includes(u)) return { bucket: "volumen", base: n * 1000 };
+  if (UNIDADES_VOL_ML.includes(u)) return { bucket: "volumen", base: n };
+  return { bucket: "unidad", base: n };
+}
+
+// ¿Dos nombres de producto se refieren a lo mismo? (ignora acentos/mayúsculas)
+function mismoProducto(a, b) {
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const corto = x.length <= y.length ? x : y;
+  const largo = x.length <= y.length ? y : x;
+  return corto.length >= 4 && largo.includes(corto);
 }
 
 // Texto legible de un ingrediente: "400 gr de lomo".
@@ -110,6 +136,8 @@ module.exports = {
   fechaDeDia,
   ESTADO_SQL,
   bucketUnidad,
+  aBase,
+  mismoProducto,
   textoIngrediente,
   mapReceta,
 };
