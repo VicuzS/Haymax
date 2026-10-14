@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
@@ -5,13 +6,14 @@ import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
 import useApi from "../hooks/useApi";
-import { getReceta } from "../lib/api";
-import { faltantes, ingredienteCubierto, precioPorPorcion, ahorroPorPorcion, soles, dificultadTexto } from "../lib/domain";
+import { getRecetaDetalle, agregarFavorito, quitarFavorito } from "../lib/api";
+import { norm, precioPorPorcion, ahorroPorPorcion, soles, dificultadTexto } from "../lib/domain";
 
 const NOMBRE = "Detalle de receta";
 
 export default function REC_02({ receta }) {
-  const { data, loading, error, recargar } = useApi(() => getReceta(receta));
+  const { data, loading, error, recargar } = useApi(() => getRecetaDetalle(receta));
+  const [favLocal, setFavLocal] = useState(null);
 
   if (loading) {
     return (
@@ -29,18 +31,48 @@ export default function REC_02({ receta }) {
   }
 
   const r = data.receta;
-  const pantry = data.pantry;
-  const faltan = faltantes(r, pantry);
+  const favorito = favLocal == null ? !!r.esFavorito : favLocal;
+  const faltantes = (data.disponibilidad && data.disponibilidad.faltantes) || [];
+  const faltaIngrediente = (nombre) => faltantes.some((f) => norm(f).includes(norm(nombre)));
   const ahorro = ahorroPorPorcion(r);
+
+  const ingredientes =
+    r.ingredientes_detalle && r.ingredientes_detalle.length
+      ? r.ingredientes_detalle.map((i) => ({
+          key: String(i.id),
+          nombre: i.nombre,
+          label: [i.cantidad, i.unidad_medida, i.nombre].filter((x) => x != null && x !== "").join(" "),
+          opcional: !!i.opcional,
+        }))
+      : (r.ingredientes || []).map((s, idx) => ({
+          key: s + idx,
+          nombre: s.replace(/^[0-9.,]+\s*\S*\s*(de\s+)?/i, ""),
+          label: s,
+          opcional: false,
+        }));
+
+  const alternarFavorito = async () => {
+    const nuevo = !favorito;
+    setFavLocal(nuevo);
+    try {
+      if (nuevo) await agregarFavorito(r.id);
+      else await quitarFavorito(r.id);
+    } catch (_e) {
+      setFavLocal(!nuevo);
+    }
+  };
 
   return (
     <Screen id="REC-02" name={NOMBRE}>
-      <K.Hero
-        imagen={r.imagen}
-        title={r.nombre}
-        price={`${soles(precioPorPorcion(r))} /poc.`}
-        time={`${r.minutos} min`}
-      />
+      <View style={styles.heroWrap}>
+        <K.Hero
+          imagen={r.imagen}
+          title={r.nombre}
+          price={`${soles(precioPorPorcion(r))} /poc.`}
+          time={`${r.minutos} min`}
+        />
+        <K.Heart activo={favorito} onPress={alternarFavorito} style={styles.heart} />
+      </View>
 
       <K.SectionTitle title="Datos" />
       <View style={styles.rows}>
@@ -57,21 +89,21 @@ export default function REC_02({ receta }) {
 
       <K.SectionTitle title="Ingredientes" />
       <View style={styles.rows}>
-        {r.ingredientes.map((ing) => {
-          const ok = ingredienteCubierto(ing, pantry);
+        {ingredientes.map((ing) => {
+          const ok = ing.opcional || !faltaIngrediente(ing.nombre);
           return (
             <K.Row
-              key={ing}
-              label={ing}
-              value={ok ? "En stock" : "Falta"}
-              valueColor={ok ? undefined : colors.amber}
-              icon={ok ? "✓" : "!"}
+              key={ing.key}
+              label={ing.label}
+              value={ing.opcional ? "Opcional" : ok ? "En stock" : "Falta"}
+              valueColor={ing.opcional ? colors.muted : ok ? undefined : colors.amber}
+              icon={ing.opcional ? "☆" : ok ? "✓" : "!"}
             />
           );
         })}
       </View>
 
-      {faltan.length > 0 ? (
+      {faltantes.length > 0 ? (
         <K.LinkText
           label="Agregar faltantes a mi lista de compras"
           align="CENTER"
@@ -81,7 +113,7 @@ export default function REC_02({ receta }) {
 
       <K.Card
         title="Balance nutricional"
-        sub={`${r.calorias} kcal por porción · rinde ${r.porciones} porciones · ${faltan.length === 0 ? "todo disponible" : `faltan ${faltan.length} insumos`}`}
+        sub={`${r.calorias} kcal por porción · rinde ${r.porciones} porciones · ${faltantes.length === 0 ? "todo disponible" : `faltan ${faltantes.length} insumos`}`}
       />
 
       <Button label="Planificar este plato" full onPress={() => go("PLA-01", { receta: r.id })} />
@@ -90,4 +122,8 @@ export default function REC_02({ receta }) {
   );
 }
 
-const styles = StyleSheet.create({ rows: { gap: 0 } });
+const styles = StyleSheet.create({
+  rows: { gap: 0 },
+  heroWrap: { position: "relative" },
+  heart: { position: "absolute", top: 12, right: 12 },
+});

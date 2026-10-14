@@ -8,7 +8,6 @@
 // Todas las operaciones personales requieren una sesión de cuenta válida.
 // Los datos simulados se conservan para pruebas internas, pero no son una vía de acceso.
 import {
-  recipesMock,
   pantryMock,
   mealPlanMock,
   shoppingMock,
@@ -175,22 +174,59 @@ export async function getDespensa() {
   return { items, stats: D.pantryStats(items) };
 }
 
-export async function getRecetas() {
-  if (!(await enCuenta())) {
-    return { recetas: [...recipesMock], pantry: [...pantryMock] };
-  }
-  const [recetas, despensa] = await Promise.all([rf("/recetas"), rf("/despensa")]);
-  return { recetas: recetas.map(aReceta), pantry: despensa.map(aInsumo) };
+// — Motor de disponibilidad (P3) —
+export async function getMotor() {
+  await enCuenta();
+  const [recetas, favoritos] = await Promise.all([
+    rf("/recetas/disponibilidad"),
+    rf("/favoritos/ids").catch(() => []),
+  ]);
+  return { recetas, favoritos };
+}
+
+export async function getRecetasPorDistrito(distrito) {
+  await enCuenta();
+  const qs = distrito ? "?distrito=" + encodeURIComponent(distrito) : "";
+  const [lista, disponibilidad] = await Promise.all([
+    rf("/recetas" + qs),
+    rf("/recetas/disponibilidad").catch(() => []),
+  ]);
+  const ids = new Set((lista || []).map((r) => r.id));
+  return disponibilidad.filter((d) => ids.has(d.id));
 }
 
 export async function getReceta(id) {
-  if (!(await enCuenta())) {
-    return { receta: D.recetaById(id), pantry: [...pantryMock] };
-  }
-  const [lista, despensa] = await Promise.all([rf("/recetas"), rf("/despensa")]);
-  const rs = lista.map(aReceta);
-  const receta = id ? rs.find((r) => r.id === id) : null;
-  return { receta: receta || rs[0], pantry: despensa.map(aInsumo) };
+  await enCuenta();
+  const [detalle, despensa] = await Promise.all([
+    id ? rf("/recetas/" + encodeURIComponent(id)) : rf("/recetas").then((l) => (l && l[0]) || null),
+    rf("/despensa"),
+  ]);
+  return { receta: aReceta(detalle), pantry: despensa.map(aInsumo) };
+}
+
+export async function getRecetaDetalle(id) {
+  await enCuenta();
+  const [detalle, disponibilidad, despensa] = await Promise.all([
+    id ? rf("/recetas/" + encodeURIComponent(id)) : rf("/recetas").then((l) => (l && l[0]) || null),
+    rf("/recetas/disponibilidad").catch(() => []),
+    rf("/despensa"),
+  ]);
+  const receta = aReceta(detalle);
+  return {
+    receta,
+    pantry: despensa.map(aInsumo),
+    disponibilidad: receta ? disponibilidad.find((d) => d.id === receta.id) || null : null,
+  };
+}
+
+export async function agregarFavorito(recetaId) {
+  await enCuenta();
+  return rf("/favoritos/" + encodeURIComponent(recetaId), { method: "POST" });
+}
+
+export async function quitarFavorito(recetaId) {
+  await enCuenta();
+  return rf("/favoritos/" + encodeURIComponent(recetaId), { method: "DELETE" });
 }
 
 export async function getPreparar(id) {

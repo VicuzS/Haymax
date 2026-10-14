@@ -4,15 +4,15 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import useApi from "../hooks/useApi";
-import { getRecetas } from "../lib/api";
-import { faltantes, precioPorPorcion, soles } from "../lib/domain";
+import { getMotor } from "../lib/api";
+import { soles } from "../lib/domain";
 
 const NOMBRE = "¿Qué puedo cocinar? (motor)";
-const FILTROS = ["Completas", "Casi listas", "Rápidas"];
+const FILTROS = ["Completas", "Casi listas", "Rápidas", "Favoritas"];
 
 export default function REC_01() {
   const [filtro, setFiltro] = useState("Completas");
-  const { data, loading, error, recargar } = useApi(getRecetas);
+  const { data, loading, error, recargar } = useApi(getMotor);
 
   if (loading) {
     return (
@@ -29,46 +29,59 @@ export default function REC_01() {
     );
   }
 
-  const conEstado = data.recetas.map((r) => ({ r, f: faltantes(r, data.pantry) }));
-  const listas =
+  const favoritas = new Set(data.favoritos || []);
+  const recetas = data.recetas || [];
+
+  const filtradas =
     filtro === "Completas"
-      ? conEstado.filter((x) => x.f.length === 0)
+      ? recetas.filter((r) => r.disponible)
       : filtro === "Casi listas"
-        ? conEstado.filter((x) => x.f.length >= 1 && x.f.length <= 2)
-        : conEstado.filter((x) => x.r.minutos <= 30);
+        ? recetas.filter((r) => !r.disponible && r.faltantes_count <= 2)
+        : filtro === "Rápidas"
+          ? recetas.filter((r) => r.minutos <= 30)
+          : recetas.filter((r) => favoritas.has(r.id));
 
   const titulo =
     filtro === "Completas"
       ? "Puedes cocinar completo"
       : filtro === "Casi listas"
         ? "Te falta poco"
-        : "Listas en 30 minutos o menos";
+        : filtro === "Rápidas"
+          ? "Listas en 30 minutos o menos"
+          : "Tus recetas favoritas";
 
   const faltanTotales = new Set();
-  conEstado.forEach((x) => x.f.forEach((i) => faltanTotales.add(i)));
+  recetas.forEach((r) => (r.faltantes || []).forEach((i) => faltanTotales.add(i)));
 
   return (
     <Screen id="REC-01" name={NOMBRE}>
       <K.Chips items={FILTROS} active={filtro} onPressItem={setFiltro} />
       <K.SectionTitle title={titulo} />
 
-      {listas.length === 0 ? (
-        <K.EmptyState title="Ninguna receta con este filtro" sub="Prueba con otro filtro o registra más insumos." />
+      {filtradas.length === 0 ? (
+        <K.EmptyState
+          title={filtro === "Favoritas" ? "Aún no tienes favoritas" : "Ninguna receta con este filtro"}
+          sub={
+            filtro === "Favoritas"
+              ? "Marca el corazón en el detalle de una receta."
+              : "Prueba con otro filtro o registra más insumos."
+          }
+        />
       ) : (
-        listas.map(({ r, f }) => (
+        filtradas.map((r) => (
           <K.PhotoCard
             key={r.id}
             imagen={r.imagen}
             title={r.nombre}
             sub={
-              f.length === 0
+              r.disponible
                 ? `${r.porciones} porciones · ${r.minutos} min · todo disponible`
-                : `Falta: ${f.slice(0, 2).join(", ")}${f.length > 2 ? "…" : ""}`
+                : `Falta: ${r.faltantes.slice(0, 2).join(", ")}${r.faltantes_count > 2 ? "…" : ""}`
             }
-            price={`${soles(precioPorPorcion(r))} /poc.`}
+            price={`${soles(r.precio / (r.porciones || 1))} /poc.`}
             time={`${r.minutos} min`}
-            status={f.length === 0 ? "Se puede preparar" : `Falta ${f.length} insumo${f.length > 1 ? "s" : ""}`}
-            statusTone={f.length === 0 ? undefined : "amber"}
+            status={r.disponible ? "Se puede preparar" : `Falta ${r.faltantes_count} insumo${r.faltantes_count > 1 ? "s" : ""}`}
+            statusTone={r.disponible ? undefined : "amber"}
             cta="Ver →"
             onPress={() => go("REC-02", { receta: r.id })}
           />

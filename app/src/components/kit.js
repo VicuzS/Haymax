@@ -429,6 +429,24 @@ export function Hero({ imagen, title, price, time }) {
   );
 }
 
+export function Heart({ activo, onPress, style }) {
+  const body = (
+    <View style={styles.heart}>
+      <Icon name={activo ? "heart" : "heart-outline"} size={20} color={activo ? colors.red : colors.muted} />
+    </View>
+  );
+  if (!onPress) return <View style={style}>{body}</View>;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      style={({ pressed }) => [style, pressed && styles.pressed]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
 export function CheckCircle({ title }) {
   return (
     <View style={styles.checkBox}>
@@ -656,6 +674,7 @@ const styles = StyleSheet.create({
   pillWarnText: { color: colors.amber },
 
   hero: { borderRadius: radius.lg, overflow: "hidden", marginBottom: 4 },
+  heart: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.white, alignItems: "center", justifyContent: "center", ...shadows.card },
   pill: { position: "absolute", borderRadius: radius.pill, paddingHorizontal: 12, height: 26, justifyContent: "center", backgroundColor: colors.white, flexDirection: "row", alignItems: "center", gap: 4 },
   pillTime: { top: 12, left: 12 },
   pillTimeText: { fontSize: typography.sizes.caption, color: colors.text },
