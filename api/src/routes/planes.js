@@ -45,6 +45,12 @@ router.post("/", (req, res) => {
   if (!p.receta_id || !p.comida) {
     return res.status(400).json({ error: "receta_id y comida son obligatorios" });
   }
+  if (!["desayuno", "almuerzo", "cena"].includes(p.comida)) {
+    return res.status(400).json({ error: "comida debe ser desayuno, almuerzo o cena" });
+  }
+  if (!q.get("SELECT id FROM recetas WHERE id = ?", p.receta_id)) {
+    return res.status(404).json({ error: "receta no encontrada" });
+  }
   const fecha = p.fecha || (p.dia ? fechaDeDia(p.dia) : hoy());
   const hogarId = hogarDe(req.user.id);
   const r = q.run(
@@ -81,7 +87,7 @@ router.put("/:id", (req, res) => {
     hogarId
   );
   if (!r.changes) return res.status(404).json({ error: "plan no encontrado" });
-  res.json(aPlan(q.get("SELECT * FROM planes WHERE id = ?", Number(req.params.id))));
+  res.json(aPlan(q.get("SELECT * FROM planes WHERE id = ? AND hogar_id = ?", Number(req.params.id), hogarId)));
 });
 
 // DELETE /api/planes/:id

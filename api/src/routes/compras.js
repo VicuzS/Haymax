@@ -100,7 +100,7 @@ router.put("/:id", (req, res) => {
     hogarId
   );
   if (!r.changes) return res.status(404).json({ error: "ítem no encontrado" });
-  res.json(aCompra(q.get("SELECT * FROM compras WHERE id = ?", Number(req.params.id))));
+  res.json(aCompra(q.get("SELECT * FROM compras WHERE id = ? AND hogar_id = ?", Number(req.params.id), hogarId)));
 });
 
 // DELETE /api/compras/:id
