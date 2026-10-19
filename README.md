@@ -36,7 +36,7 @@ Es una aplicación móvil diseñada para el hogar peruano que reduce el desperdi
 
 * **Frontend Móvil:** React Native + Expo (Expo Router)
 * **Backend:** Node.js (Express) + JWT
-* **Base de Datos:** SQLite (`better-sqlite3`)
+* **Base de Datos:** PostgreSQL (`pg`) en un contenedor Docker
 * **Servicios OCR:** pendiente de integración (Google Cloud Vision API / Tesseract previstos)
 * **Diseño:** Figma
 
@@ -58,6 +58,14 @@ cd haymax-app
 
 ### 2. Backend (API)
 
+Desde la raíz del repositorio, inicia PostgreSQL en Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+Luego configura y ejecuta la API:
+
 ```bash
 cd api
 cp .env.example .env        # en Windows: copy .env.example .env
@@ -65,6 +73,10 @@ npm install
 npm run seed                # carga datos de demostración (idempotente)
 npm run dev                 # API en http://localhost:4000/api/salud
 ```
+
+La conexión predeterminada usa `postgres://haymax:haymax_dev_password@localhost:5432/haymax`.
+Si ya tienes datos en `api/haymax.db` que quieres conservar, impórtalos antes
+del seed con `npm run migrate:sqlite` desde `api/`.
 
 ### 3. Frontend móvil (Expo)
 

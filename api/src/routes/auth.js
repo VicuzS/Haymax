@@ -1,8 +1,9 @@
 // Autenticación, sesión y perfil de usuario.
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { q, hogarDe } = require("../db");
+const { db, q } = require("../db");
 const { auth, firmar, hashToken } = require("../middleware/auth");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ function correoValido(valor) {
 }
 
 // POST /api/auth/registro — crea usuario, hogar personal y sesión autenticada.
-router.post("/registro", (req, res) => {
+router.post("/registro", asyncHandler(async (req, res) => {
   const body = req.body || {};
   const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
   const email = correoNormalizado(body.email);
@@ -57,52 +58,58 @@ router.post("/registro", (req, res) => {
   if (password.length < 8 || password.length > 128) {
     return res.status(400).json({ error: "la contraseña debe tener entre 8 y 128 caracteres" });
   }
-  if (q.get("SELECT id FROM usuarios WHERE email = ? COLLATE NOCASE", email)) {
+  if (await q.get("SELECT id FROM usuarios WHERE lower(email) = lower(?)", email)) {
     return res.status(409).json({ error: "el email ya está registrado" });
   }
 
   try {
     const hash = bcrypt.hashSync(password, 10);
-    const r = q.run(
-      "INSERT INTO usuarios (nombre, email, password_hash, distrito) VALUES (?, ?, ?, ?)",
-      nombre,
-      email,
-      hash,
-      distrito
-    );
-    const id = Number(r.lastInsertRowid);
-    hogarDe(id);
-    const user = publico(q.get("SELECT * FROM usuarios WHERE id = ?", id));
+    const user = await db.transaction(async (tx) => {
+      const creado = await tx.run(
+        "INSERT INTO usuarios (nombre, email, password_hash, distrito) VALUES (?, ?, ?, ?) RETURNING *",
+        nombre,
+        email,
+        hash,
+        distrito
+      );
+      const hogar = await tx.run("INSERT INTO hogares (nombre) VALUES (?) RETURNING id", `Hogar de ${nombre}`);
+      await tx.run(
+        "INSERT INTO hogar_integrantes (hogar_id, usuario_id, rol) VALUES (?, ?, 'admin')",
+        hogar.row.id,
+        creado.row.id
+      );
+      return publico(creado.row);
+    });
     return res.status(201).json({ token: firmar(user), user });
   } catch (error) {
-    if (error && String(error.code || "").includes("SQLITE_CONSTRAINT")) {
+    if (error && error.code === "23505") {
       return res.status(409).json({ error: "el email ya está registrado" });
     }
     throw error;
   }
-});
+}));
 
 // POST /api/auth/login
-router.post("/login", (req, res) => {
+router.post("/login", asyncHandler(async (req, res) => {
   const body = req.body || {};
   const email = correoNormalizado(body.email);
   const password = typeof body.password === "string" ? body.password : "";
-  const u = email ? q.get("SELECT * FROM usuarios WHERE email = ? COLLATE NOCASE", email) : null;
+  const u = email ? await q.get("SELECT * FROM usuarios WHERE lower(email) = lower(?)", email) : null;
   if (!u || !bcrypt.compareSync(password, u.password_hash)) {
     return res.status(401).json({ error: "correo o contraseña incorrectos" });
   }
   return res.json({ token: firmar(u), user: publico(u) });
-});
+}));
 
 // GET /api/auth/yo — perfil autenticado actual.
-router.get("/yo", auth, (req, res) => {
-  const u = q.get("SELECT * FROM usuarios WHERE id = ?", req.user.id);
+router.get("/yo", auth, asyncHandler(async (req, res) => {
+  const u = await q.get("SELECT * FROM usuarios WHERE id = ?", req.user.id);
   if (!u) return res.status(404).json({ error: "usuario no encontrado" });
   return res.json({ user: publico(u) });
-});
+}));
 
 // PUT /api/auth/perfil — actualiza únicamente los campos del perfil permitidos.
-router.put("/perfil", auth, (req, res) => {
+router.put("/perfil", auth, asyncHandler(async (req, res) => {
   const body = req.body || {};
   const campos = [];
   const valores = [];
@@ -146,27 +153,28 @@ router.put("/perfil", auth, (req, res) => {
 
   if (campos.length) {
     valores.push(req.user.id);
-    const actualizado = q.run(`UPDATE usuarios SET ${campos.join(", ")} WHERE id = ?`, ...valores);
+    const actualizado = await q.run(`UPDATE usuarios SET ${campos.join(", ")} WHERE id = ?`, ...valores);
     if (!actualizado.changes) return res.status(404).json({ error: "usuario no encontrado" });
   }
-  const user = publico(q.get("SELECT * FROM usuarios WHERE id = ?", req.user.id));
+  const user = publico(await q.get("SELECT * FROM usuarios WHERE id = ?", req.user.id));
   if (!user) return res.status(404).json({ error: "usuario no encontrado" });
   return res.json({ user });
-});
+}));
 
 // POST /api/auth/logout — invalida el JWT en el servidor.
-router.post("/logout", auth, (req, res) => {
+router.post("/logout", auth, asyncHandler(async (req, res) => {
   const expira = Number(req.user.exp) || Math.floor(Date.now() / 1000);
   const ahora = Math.floor(Date.now() / 1000);
-  q.run("DELETE FROM sesiones_revocadas WHERE expires_at <= ?", ahora);
+  await q.run("DELETE FROM sesiones_revocadas WHERE expires_at <= ?", ahora);
   if (expira > ahora) {
-    q.run(
-      "INSERT OR REPLACE INTO sesiones_revocadas (token_hash, expires_at) VALUES (?, ?)",
+    await q.run(
+      `INSERT INTO sesiones_revocadas (token_hash, expires_at) VALUES (?, ?)
+       ON CONFLICT (token_hash) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
       hashToken(req.authToken),
       expira
     );
   }
   return res.status(204).end();
-});
+}));
 
 module.exports = router;

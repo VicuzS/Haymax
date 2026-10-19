@@ -18,8 +18,8 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function estaRevocado(token) {
-  return !!q.get("SELECT token_hash FROM sesiones_revocadas WHERE token_hash = ?", hashToken(token));
+async function estaRevocado(token) {
+  return !!(await q.get("SELECT token_hash FROM sesiones_revocadas WHERE token_hash = ?", hashToken(token)));
 }
 
 // Exige Authorization: Bearer <token> y rechaza JWT revocados.
@@ -33,14 +33,12 @@ function auth(req, res, next) {
   } catch (_e) {
     return res.status(401).json({ error: "token inválido o expirado" });
   }
-  try {
-    if (estaRevocado(token)) return res.status(401).json({ error: "sesión cerrada; inicia sesión nuevamente" });
-  } catch (error) {
-    return next(error);
-  }
-  req.user = payload;
-  req.authToken = token;
-  return next();
+  estaRevocado(token).then((revocado) => {
+    if (revocado) return res.status(401).json({ error: "sesión cerrada; inicia sesión nuevamente" });
+    req.user = payload;
+    req.authToken = token;
+    return next();
+  }).catch(next);
 }
 
 // Permite consultar contenido público; si el JWT es válido, también agrega req.user.
@@ -50,7 +48,11 @@ function authOpcional(req, _res, next) {
   if (token) {
     try {
       const payload = jwt.verify(token, SECRETO());
-      if (!estaRevocado(token)) req.user = payload;
+      estaRevocado(token).then((revocado) => {
+        if (!revocado) req.user = payload;
+        next();
+      }).catch(next);
+      return;
     } catch (_e) {
       // Un token opcional inválido no da acceso a datos personales.
     }

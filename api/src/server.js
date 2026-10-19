@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-require("./db"); // crea el esquema si no existe
+const { schemaReady } = require("./db");
 
 const authRoutes = require("./routes/auth");
 const recetasRoutes = require("./routes/recetas");
@@ -35,8 +35,13 @@ app.use((err, _req, res, _next) => {
 
 const PORT = process.env.PORT || 4000;
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`haymax-api escuchando en http://localhost:${PORT}/api/salud`);
+  schemaReady.then(() => {
+    app.listen(PORT, () => {
+      console.log(`haymax-api escuchando en http://localhost:${PORT}/api/salud`);
+    });
+  }).catch((error) => {
+    console.error("No se pudo conectar a PostgreSQL:", error);
+    process.exitCode = 1;
   });
 }
 

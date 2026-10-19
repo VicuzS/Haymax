@@ -3,6 +3,7 @@ const express = require("express");
 const { q, hogarDe } = require("../db");
 const { auth } = require("../middleware/auth");
 const { diaSemana, fechaDeDia, hoy } = require("../utils");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 router.use(auth);
@@ -22,49 +23,49 @@ function aPlan(r) {
 }
 
 // GET /api/planes?desde=2026-10-13&hasta=2026-10-19
-router.get("/", (req, res) => {
-  const hogarId = hogarDe(req.user.id);
+router.get("/", asyncHandler(async (req, res) => {
+  const hogarId = await hogarDe(req.user.id);
   const { desde, hasta } = req.query;
   let rows;
   if (desde && hasta) {
-    rows = q.all(
+    rows = await q.all(
       "SELECT * FROM planes WHERE hogar_id = ? AND fecha BETWEEN ? AND ? ORDER BY fecha, comida",
       hogarId,
       desde,
       hasta
     );
   } else {
-    rows = q.all("SELECT * FROM planes WHERE hogar_id = ? ORDER BY fecha, comida", hogarId);
+    rows = await q.all("SELECT * FROM planes WHERE hogar_id = ? ORDER BY fecha, comida", hogarId);
   }
   res.json(rows.map(aPlan));
-});
+}));
 
 // POST /api/planes  (acepta `fecha` ISO o `dia` tipo "lunes")
-router.post("/", (req, res) => {
+router.post("/", asyncHandler(async (req, res) => {
   const p = req.body || {};
   if (!p.receta_id || !p.comida) {
     return res.status(400).json({ error: "receta_id y comida son obligatorios" });
   }
   const fecha = p.fecha || (p.dia ? fechaDeDia(p.dia) : hoy());
-  const hogarId = hogarDe(req.user.id);
-  const r = q.run(
+  const hogarId = await hogarDe(req.user.id);
+  const r = await q.run(
     `INSERT INTO planes (hogar_id, receta_id, fecha, comida, porciones, completado)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?) RETURNING *`,
     hogarId,
     p.receta_id,
     fecha,
     p.comida,
     p.porciones || 1,
-    p.completado ? 1 : 0
+    !!p.completado
   );
-  res.status(201).json(aPlan(q.get("SELECT * FROM planes WHERE id = ?", Number(r.lastInsertRowid))));
-});
+  res.status(201).json(aPlan(r.row));
+}));
 
 // PUT /api/planes/:id
-router.put("/:id", (req, res) => {
+router.put("/:id", asyncHandler(async (req, res) => {
   const p = req.body || {};
-  const hogarId = hogarDe(req.user.id);
-  const r = q.run(
+  const hogarId = await hogarDe(req.user.id);
+  const r = await q.run(
     `UPDATE planes SET
        receta_id  = COALESCE(?, receta_id),
        fecha      = COALESCE(?, fecha),
@@ -76,20 +77,20 @@ router.put("/:id", (req, res) => {
     p.fecha ?? null,
     p.comida ?? null,
     p.porciones ?? null,
-    p.completado == null ? null : p.completado ? 1 : 0,
+    p.completado == null ? null : !!p.completado,
     req.params.id,
     hogarId
   );
   if (!r.changes) return res.status(404).json({ error: "plan no encontrado" });
-  res.json(aPlan(q.get("SELECT * FROM planes WHERE id = ?", Number(req.params.id))));
-});
+  res.json(aPlan(await q.get("SELECT * FROM planes WHERE id = ?", Number(req.params.id))));
+}));
 
 // DELETE /api/planes/:id
-router.delete("/:id", (req, res) => {
-  const hogarId = hogarDe(req.user.id);
-  const r = q.run("DELETE FROM planes WHERE id = ? AND hogar_id = ?", req.params.id, hogarId);
+router.delete("/:id", asyncHandler(async (req, res) => {
+  const hogarId = await hogarDe(req.user.id);
+  const r = await q.run("DELETE FROM planes WHERE id = ? AND hogar_id = ?", req.params.id, hogarId);
   if (!r.changes) return res.status(404).json({ error: "plan no encontrado" });
   res.status(204).end();
-});
+}));
 
 module.exports = router;

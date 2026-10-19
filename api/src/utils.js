@@ -44,9 +44,9 @@ function fechaDeDia(dia, base = hoy()) {
 
 // Estado de vencimiento calculado por SQLite (3 días de aviso).
 const ESTADO_SQL = `CASE
-  WHEN fecha_vencimiento IS NULL OR fecha_vencimiento = '' THEN 'ok'
-  WHEN date(fecha_vencimiento) < date('now') THEN 'vencido'
-  WHEN date(fecha_vencimiento) <= date('now', '+3 day') THEN 'por-vencer'
+  WHEN fecha_vencimiento IS NULL THEN 'ok'
+  WHEN fecha_vencimiento < CURRENT_DATE THEN 'vencido'
+  WHEN fecha_vencimiento <= CURRENT_DATE + 3 THEN 'por-vencer'
   ELSE 'ok' END`;
 
 const UNIDADES_PESO_KG = ["kg", "kilo", "kilos", "kilogramo", "kilogramos"];

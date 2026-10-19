@@ -1,7 +1,7 @@
 // Carga inicial de datos de demostración. Ejecutar: npm run seed
-// Es idempotente: usa ids fijos + INSERT OR IGNORE, se puede repetir sin duplicar.
+// Es idempotente: usa IDs fijos + ON CONFLICT DO NOTHING, se puede repetir.
 const bcrypt = require("bcryptjs");
-const { db, q, hogarDe } = require("./db");
+const { db } = require("./db");
 const { lunesDe, sumarDias } = require("./utils");
 
 // — Catálogo de productos (ids fijos) —
@@ -133,95 +133,130 @@ const compras = [
   { id: 12, nombre: "Huevo", cantidad: "1 docena", unidad_medida: "docena", seccion: "Mercado de abastos", comprado: 0 },
 ];
 
-const lunes = lunesDe();
+async function seed() {
+  const lunes = lunesDe();
+  return db.transaction(async (tx) => {
+    // 1) Usuario demo
+    let rosa = await tx.get("SELECT * FROM usuarios WHERE lower(email) = lower(?)", "rosa@haymax.pe");
+    if (!rosa) {
+      const r = await tx.run(
+        `INSERT INTO usuarios (email, password_hash, nombre, foto_url, distrito)
+         VALUES (?, ?, ?, ?, ?) RETURNING *`,
+        "rosa@haymax.pe",
+        bcrypt.hashSync("haymax123", 10),
+        "Rosa Ticlla",
+        null,
+        "Surquillo"
+      );
+      rosa = r.row;
+    }
 
-const seed = db.transaction(() => {
-  // 1) Usuario demo
-  let rosa = q.get("SELECT * FROM usuarios WHERE email = ?", "rosa@haymax.pe");
-  if (!rosa) {
-    const r = q.run(
-      "INSERT INTO usuarios (email, password_hash, nombre, foto_url, distrito) VALUES (?, ?, ?, ?, ?)",
-      "rosa@haymax.pe",
-      bcrypt.hashSync("haymax123", 10),
-      "Rosa Ticlla",
-      null,
-      "Surquillo"
+    // 2) Hogar de Rosa + membresía
+    let miembro = await tx.get("SELECT hogar_id FROM hogar_integrantes WHERE usuario_id = ? ORDER BY hogar_id LIMIT 1", rosa.id);
+    let hogar = miembro && miembro.hogar_id;
+    if (!hogar) {
+      const r = await tx.run("INSERT INTO hogares (nombre) VALUES (?) RETURNING id", `Hogar de ${rosa.nombre}`);
+      hogar = r.row.id;
+    }
+    await tx.run(
+      "INSERT INTO hogar_integrantes (hogar_id, usuario_id, rol) VALUES (?, ?, 'admin') ON CONFLICT DO NOTHING",
+      hogar,
+      rosa.id
     );
-    rosa = q.get("SELECT * FROM usuarios WHERE id = ?", Number(r.lastInsertRowid));
-  }
 
-  // 2) Hogar de Rosa + membresía
-  const hogar = hogarDe(rosa.id);
-  q.run(
-    "INSERT OR IGNORE INTO hogar_integrantes (hogar_id, usuario_id, rol) VALUES (?, ?, 'admin')",
-    hogar,
-    rosa.id
+    // 3) Catálogo
+    for (const p of productos) {
+      await tx.run(
+        `INSERT INTO catalogo_productos (id, nombre, categoria, unidad_medida_base)
+         VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+        p.id, p.nombre, p.categoria, p.unidad_medida_base
+      );
+    }
+
+    // 4) Recetas
+    for (const r of recetas) {
+      await tx.run(
+        `INSERT INTO recetas
+           (id, titulo, descripcion, imagen, porciones, tiempo_preparacion_min, dificultad, precio,
+            distrito, nutri_calorias, nutri_proteinas, nutri_carbohidratos, nutri_grasas, nutri_fibra,
+            pasos, autor_id, publica)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE) ON CONFLICT DO NOTHING`,
+        r.id, r.titulo, r.descripcion, r.imagen, r.porciones, r.tiempo_preparacion_min, r.dificultad,
+        r.precio, r.distrito, r.nutri_calorias, r.nutri_proteinas, r.nutri_carbohidratos,
+        r.nutri_grasas, r.nutri_fibra, JSON.stringify(r.pasos), rosa.id
+      );
+    }
+
+    // 5) Ingredientes de recetas
+    for (const i of ingredientes) {
+      await tx.run(
+        `INSERT INTO receta_ingredientes
+           (id, receta_id, producto_id, nombre, cantidad, unidad_medida, opcional, orden)
+         VALUES (?, ?, ?, ?, ?, ?, FALSE, ?) ON CONFLICT DO NOTHING`,
+        i.id, i.receta_id, i.producto_id, i.nombre, i.cantidad, i.unidad_medida, i.orden
+      );
+    }
+
+    // 6) Despensa del hogar
+    for (const d of despensa) {
+      await tx.run(
+        `INSERT INTO despensa
+           (id, hogar_id, producto_id, nombre, cantidad, unidad_medida, fecha_vencimiento, ubicacion)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+        d.id, hogar, d.producto_id, d.nombre, d.cantidad, d.unidad_medida, d.fecha_vencimiento, d.ubicacion
+      );
+    }
+
+    // 7) Planes de la semana actual (lunes, martes, miércoles)
+    const planes = [
+      { id: 1, receta_id: "REC-LOMO", fecha: lunes, comida: "almuerzo", porciones: 2 },
+      { id: 2, receta_id: "REC-AGALLINA", fecha: sumarDias(lunes, 1), comida: "almuerzo", porciones: 4 },
+      { id: 3, receta_id: "REC-HUANCAINA", fecha: sumarDias(lunes, 2), comida: "cena", porciones: 4 },
+    ];
+    for (const p of planes) {
+      await tx.run(
+        `INSERT INTO planes (id, hogar_id, receta_id, fecha, comida, porciones, completado)
+         VALUES (?, ?, ?, ?, ?, ?, FALSE) ON CONFLICT DO NOTHING`,
+        p.id, hogar, p.receta_id, p.fecha, p.comida, p.porciones
+      );
+    }
+
+    // 8) Lista de compras
+    for (const c of compras) {
+      await tx.run(
+        `INSERT INTO compras (id, hogar_id, nombre, cantidad, unidad_medida, seccion, comprado)
+         VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+        c.id, hogar, c.nombre, c.cantidad, c.unidad_medida, c.seccion, Boolean(c.comprado)
+      );
+    }
+
+    // 9) Favorito de ejemplo
+    await tx.run(
+      "INSERT INTO favoritos (usuario_id, receta_id) VALUES (?, ?) ON CONFLICT DO NOTHING",
+      rosa.id,
+      "REC-LOMO"
+    );
+
+    // Los datos de demo usan IDs explícitos; adelanta los identity sequences.
+    for (const tabla of ["usuarios", "hogares", "catalogo_productos", "despensa", "receta_ingredientes", "planes", "compras"]) {
+      await tx.run(
+        `SELECT setval(pg_get_serial_sequence(?, 'id'), GREATEST(COALESCE((SELECT MAX(id) FROM ${tabla}), 1), 1), TRUE)`,
+        tabla
+      );
+    }
+    return { hogar, usuario: rosa.email };
+  });
+}
+
+seed().then((info) => {
+  console.log(
+    `Seed completado: usuario ${info.usuario} / haymax123, hogar #${info.hogar}, ` +
+      `${productos.length} productos, ${recetas.length} recetas, ${despensa.length} insumos, ` +
+      `${compras.length} compras, 3 planes, 1 favorito`
   );
-
-  // 3) Catálogo
-  const insProducto = db.prepare(
-    "INSERT OR IGNORE INTO catalogo_productos (id, nombre, categoria, unidad_medida_base) VALUES (@id, @nombre, @categoria, @unidad_medida_base)"
-  );
-  for (const p of productos) insProducto.run(p);
-
-  // 4) Recetas
-  const insReceta = db.prepare(
-    `INSERT OR IGNORE INTO recetas
-       (id, titulo, descripcion, imagen, porciones, tiempo_preparacion_min, dificultad, precio,
-        distrito, nutri_calorias, nutri_proteinas, nutri_carbohidratos, nutri_grasas, nutri_fibra,
-        pasos, autor_id, publica)
-     VALUES
-       (@id, @titulo, @descripcion, @imagen, @porciones, @tiempo_preparacion_min, @dificultad, @precio,
-        @distrito, @nutri_calorias, @nutri_proteinas, @nutri_carbohidratos, @nutri_grasas, @nutri_fibra,
-        @pasos, @autor_id, 1)`
-  );
-  for (const r of recetas) {
-    insReceta.run({ ...r, pasos: JSON.stringify(r.pasos), autor_id: rosa.id });
-  }
-
-  // 5) Ingredientes de recetas
-  const insIng = db.prepare(
-    `INSERT OR IGNORE INTO receta_ingredientes
-       (id, receta_id, producto_id, nombre, cantidad, unidad_medida, opcional, orden)
-     VALUES (@id, @receta_id, @producto_id, @nombre, @cantidad, @unidad_medida, 0, @orden)`
-  );
-  for (const i of ingredientes) insIng.run(i);
-
-  // 6) Despensa del hogar
-  const insDespensa = db.prepare(
-    `INSERT OR IGNORE INTO despensa
-       (id, hogar_id, producto_id, nombre, cantidad, unidad_medida, fecha_vencimiento, ubicacion)
-     VALUES (@id, @hogar_id, @producto_id, @nombre, @cantidad, @unidad_medida, @fecha_vencimiento, @ubicacion)`
-  );
-  for (const d of despensa) insDespensa.run({ ...d, hogar_id: hogar });
-
-  // 7) Planes de la semana actual (lunes, martes, miércoles)
-  const insPlan = db.prepare(
-    `INSERT OR IGNORE INTO planes
-       (id, hogar_id, receta_id, fecha, comida, porciones, completado)
-     VALUES (@id, @hogar_id, @receta_id, @fecha, @comida, @porciones, 0)`
-  );
-  insPlan.run({ id: 1, hogar_id: hogar, receta_id: "REC-LOMO", fecha: lunes, comida: "almuerzo", porciones: 2 });
-  insPlan.run({ id: 2, hogar_id: hogar, receta_id: "REC-AGALLINA", fecha: sumarDias(lunes, 1), comida: "almuerzo", porciones: 4 });
-  insPlan.run({ id: 3, hogar_id: hogar, receta_id: "REC-HUANCAINA", fecha: sumarDias(lunes, 2), comida: "cena", porciones: 4 });
-
-  // 8) Lista de compras
-  const insCompra = db.prepare(
-    `INSERT OR IGNORE INTO compras
-       (id, hogar_id, nombre, cantidad, unidad_medida, seccion, comprado)
-     VALUES (@id, @hogar_id, @nombre, @cantidad, @unidad_medida, @seccion, @comprado)`
-  );
-  for (const c of compras) insCompra.run({ ...c, hogar_id: hogar });
-
-  // 9) Favorito de ejemplo
-  q.run("INSERT OR IGNORE INTO favoritos (usuario_id, receta_id) VALUES (?, ?)", rosa.id, "REC-LOMO");
-
-  return { hogar, usuario: rosa.email };
+  return db.pool.end();
+}).catch(async (error) => {
+  console.error(error);
+  await db.pool.end();
+  process.exitCode = 1;
 });
-
-const info = seed();
-console.log(
-  `Seed completado: usuario ${info.usuario} / haymax123, hogar #${info.hogar}, ` +
-    `${productos.length} productos, ${recetas.length} recetas, ${despensa.length} insumos, ` +
-    `${compras.length} compras, 3 planes, 1 favorito`
-);

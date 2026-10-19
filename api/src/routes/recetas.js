@@ -3,6 +3,7 @@ const express = require("express");
 const { db, q, hogarDe } = require("../db");
 const { authOpcional, auth } = require("../middleware/auth");
 const { mapReceta, aBase, mismoProducto, textoIngrediente } = require("../utils");
+const { asyncHandler } = require("../middleware/asyncHandler");
 
 const router = express.Router();
 
@@ -24,19 +25,19 @@ function ingredientesDe(recetaId) {
   );
 }
 
-function favoritosDe(usuarioId) {
+async function favoritosDe(usuarioId) {
   if (!usuarioId) return new Set();
   return new Set(
-    q.all("SELECT receta_id FROM favoritos WHERE usuario_id = ?", usuarioId).map((f) => f.receta_id)
+    (await q.all("SELECT receta_id FROM favoritos WHERE usuario_id = ?", usuarioId)).map((f) => f.receta_id)
   );
 }
 
 // Reemplaza los ingredientes de una receta de forma atómica.
 // Si se envía un `producto_id` que no existe en el catálogo, se ignora (queda null)
 // para no romper la llave foránea.
-const insertarIngredientes = db.transaction((recetaId, lista) => {
-  q.run("DELETE FROM receta_ingredientes WHERE receta_id = ?", recetaId);
-  (lista || []).forEach((it, idx) => {
+async function insertarIngredientes(tx, recetaId, lista) {
+  await tx.run("DELETE FROM receta_ingredientes WHERE receta_id = ?", recetaId);
+  for (const [idx, it] of (lista || []).entries()) {
     const obj = typeof it === "string"
       ? { nombre: it, cantidad: 1, unidad_medida: "und" }
       : {
@@ -45,10 +46,10 @@ const insertarIngredientes = db.transaction((recetaId, lista) => {
           unidad_medida: it.unidad_medida || it.unidad,
         };
     let productoId = (typeof it === "object" && it && it.producto_id) || null;
-    if (productoId != null && !q.get("SELECT 1 FROM catalogo_productos WHERE id = ?", productoId)) {
+    if (productoId != null && !await tx.get("SELECT 1 FROM catalogo_productos WHERE id = ?", productoId)) {
       productoId = null;
     }
-    q.run(
+    await tx.run(
       `INSERT INTO receta_ingredientes (receta_id, producto_id, nombre, cantidad, unidad_medida, opcional, orden)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       recetaId,
@@ -56,20 +57,20 @@ const insertarIngredientes = db.transaction((recetaId, lista) => {
       obj.nombre,
       obj.cantidad != null ? obj.cantidad : 1,
       obj.unidad_medida || "und",
-      typeof it === "object" && it && it.opcional ? 1 : 0,
+      typeof it === "object" && it && it.opcional ? true : false,
       idx
     );
-  });
-});
+  }
+}
 
 // GET /api/recetas?q=pollo&distrito=Surquillo&dificultad=facil&orden=precio&dir=asc&page=1&limit=20
 // Devuelve un array (compatible con el app); el total va en la cabecera X-Total-Count.
-router.get("/", authOpcional, (req, res) => {
+router.get("/", authOpcional, asyncHandler(async (req, res) => {
   const { q: term, distrito, dificultad } = req.query;
-  const filtros = ["publica = 1"];
+  const filtros = ["publica = TRUE"];
   const args = [];
   if (term) {
-    filtros.push("(titulo LIKE ? OR descripcion LIKE ?)");
+    filtros.push("(titulo ILIKE ? OR descripcion ILIKE ?)");
     args.push(`%${term}%`, `%${term}%`);
   }
   if (distrito) {
@@ -81,7 +82,7 @@ router.get("/", authOpcional, (req, res) => {
     args.push(dificultad);
   }
   const where = filtros.join(" AND ");
-  const total = q.get(`SELECT COUNT(*) AS c FROM recetas WHERE ${where}`, ...args).c;
+  const total = (await q.get(`SELECT COUNT(*) AS c FROM recetas WHERE ${where}`, ...args)).c;
 
   const col = ORDEN[String(req.query.orden || "").toLowerCase()] || "titulo";
   const dir = String(req.query.dir || "").toLowerCase() === "desc" ? "DESC" : "ASC";
@@ -95,7 +96,7 @@ router.get("/", authOpcional, (req, res) => {
     paginaArgs.push(limit, (page - 1) * limit);
   }
 
-  const rows = q.all(
+  const rows = await q.all(
     `SELECT * FROM recetas WHERE ${where} ORDER BY ${col} ${dir}${paginado}`,
     ...args,
     ...paginaArgs
@@ -105,9 +106,9 @@ router.get("/", authOpcional, (req, res) => {
   res.set("X-Page", String(page));
   res.set("X-Limit", String(limit));
 
-  const favs = favoritosDe(req.user && req.user.id);
+  const favs = await favoritosDe(req.user && req.user.id);
   const porReceta = new Map();
-  for (const i of q.all("SELECT * FROM receta_ingredientes ORDER BY receta_id, orden, id")) {
+  for (const i of await q.all("SELECT * FROM receta_ingredientes ORDER BY receta_id, orden, id")) {
     if (!porReceta.has(i.receta_id)) porReceta.set(i.receta_id, []);
     porReceta.get(i.receta_id).push(i);
   }
@@ -116,14 +117,14 @@ router.get("/", authOpcional, (req, res) => {
       mapReceta(r, { ingredientes: porReceta.get(r.id) || [], favorito: favs.has(r.id) })
     )
   );
-});
+}));
 
 // — Motor de disponibilidad —
 
 // Despensa del hogar indexada por producto y por nombre.
-function despensaDelHogar(hogarId) {
+async function despensaDelHogar(hogarId) {
   const lista = hogarId
-    ? q.all(
+    ? await q.all(
         "SELECT producto_id, nombre, cantidad, unidad_medida FROM despensa WHERE hogar_id = ?",
         hogarId
       )
@@ -159,13 +160,13 @@ function evaluarIngrediente(ing, casa) {
 }
 
 // GET /api/recetas/disponibilidad?orden=cobertura&solo=disponibles
-router.get("/disponibilidad", authOpcional, (req, res) => {
-  const hogarId = req.user ? hogarDe(req.user.id) : null;
-  const casa = despensaDelHogar(hogarId);
-  const recetas = q.all("SELECT * FROM recetas WHERE publica = 1");
+router.get("/disponibilidad", authOpcional, asyncHandler(async (req, res) => {
+  const hogarId = req.user ? await hogarDe(req.user.id) : null;
+  const casa = await despensaDelHogar(hogarId);
+  const recetas = await q.all("SELECT * FROM recetas WHERE publica = TRUE");
 
-  let salida = recetas.map((r) => {
-    const ings = ingredientesDe(r.id).filter((i) => !i.opcional);
+  let salida = await Promise.all(recetas.map(async (r) => {
+    const ings = (await ingredientesDe(r.id)).filter((i) => !i.opcional);
     let cubierto = 0;
     const faltantes = [];
     for (const i of ings) {
@@ -193,7 +194,7 @@ router.get("/disponibilidad", authOpcional, (req, res) => {
         fibra: r.nutri_fibra,
       },
     };
-  });
+  }));
 
   if (String(req.query.solo || "") === "disponibles") {
     salida = salida.filter((x) => x.disponible);
@@ -204,72 +205,71 @@ router.get("/disponibilidad", authOpcional, (req, res) => {
   else salida.sort((a, b) => b.cobertura - a.cobertura || a.nombre.localeCompare(b.nombre));
 
   res.json(salida);
-});
+}));
 
 // GET /api/recetas/:id
-router.get("/:id", authOpcional, (req, res) => {
-  const r = q.get("SELECT * FROM recetas WHERE id = ?", req.params.id);
+router.get("/:id", authOpcional, asyncHandler(async (req, res) => {
+  const r = await q.get("SELECT * FROM recetas WHERE id = ?", req.params.id);
   if (!r) return res.status(404).json({ error: "receta no encontrada" });
-  const fav = !!(req.user && q.get(
+  const fav = !!(req.user && await q.get(
     "SELECT 1 FROM favoritos WHERE usuario_id = ? AND receta_id = ?",
     req.user.id,
     r.id
   ));
-  res.json(mapReceta(r, { ingredientes: ingredientesDe(r.id), favorito: fav }));
-});
+  res.json(mapReceta(r, { ingredientes: await ingredientesDe(r.id), favorito: fav }));
+}));
 
 // POST /api/recetas  (crea la receta y sus ingredientes)
-router.post("/", auth, (req, res) => {
+router.post("/", auth, asyncHandler(async (req, res) => {
   const r = req.body || {};
   const titulo = r.titulo || r.nombre;
   if (!r.id || !titulo) {
     return res.status(400).json({ error: "id y titulo son obligatorios" });
   }
-  if (q.get("SELECT id FROM recetas WHERE id = ?", r.id)) {
+  if (await q.get("SELECT id FROM recetas WHERE id = ?", r.id)) {
     return res.status(409).json({ error: "ya existe una receta con ese id" });
   }
-  q.run(
-    `INSERT INTO recetas
-       (id, titulo, descripcion, imagen, porciones, tiempo_preparacion_min, dificultad,
-        precio, distrito, nutri_calorias, nutri_proteinas, nutri_carbohidratos, nutri_grasas,
-        nutri_fibra, pasos, autor_id, publica)
-     VALUES
-       (@id, @titulo, @descripcion, @imagen, @porciones, @minutos, @dificultad,
-        @precio, @distrito, @calorias, @proteinas, @carbohidratos, @grasas,
-        @fibra, @pasos, @autor_id, @publica)`,
-    {
-      id: r.id,
+  const creada = await db.transaction(async (tx) => {
+    await tx.run(
+      `INSERT INTO recetas
+         (id, titulo, descripcion, imagen, porciones, tiempo_preparacion_min, dificultad,
+          precio, distrito, nutri_calorias, nutri_proteinas, nutri_carbohidratos, nutri_grasas,
+          nutri_fibra, pasos, autor_id, publica)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      r.id,
       titulo,
-      descripcion: r.descripcion || null,
-      imagen: r.imagen || null,
-      porciones: r.porciones || 1,
-      minutos: r.tiempo_preparacion_min || r.minutos || 0,
-      dificultad: r.dificultad || "facil",
-      precio: r.precio || 0,
-      distrito: r.distrito || null,
-      calorias: r.nutri_calorias || r.calorias || 0,
-      proteinas: r.nutri_proteinas || 0,
-      carbohidratos: r.nutri_carbohidratos || 0,
-      grasas: r.nutri_grasas || 0,
-      fibra: r.nutri_fibra || 0,
-      pasos: JSON.stringify(r.pasos || []),
-      autor_id: req.user.id,
-      publica: r.publica === false ? 0 : 1,
-    }
-  );
-  insertarIngredientes(r.id, r.ingredientes);
-  res.status(201).json(mapReceta(q.get("SELECT * FROM recetas WHERE id = ?", r.id), {
-    ingredientes: ingredientesDe(r.id),
-    favorito: false,
-  }));
-});
+      r.descripcion || null,
+      r.imagen || null,
+      r.porciones || 1,
+      r.tiempo_preparacion_min || r.minutos || 0,
+      r.dificultad || "facil",
+      r.precio || 0,
+      r.distrito || null,
+      r.nutri_calorias || r.calorias || 0,
+      r.nutri_proteinas || 0,
+      r.nutri_carbohidratos || 0,
+      r.nutri_grasas || 0,
+      r.nutri_fibra || 0,
+      JSON.stringify(r.pasos || []),
+      req.user.id,
+      r.publica === false ? false : true
+    );
+    await insertarIngredientes(tx, r.id, r.ingredientes);
+    return {
+      receta: await tx.get("SELECT * FROM recetas WHERE id = ?", r.id),
+      ingredientes: await tx.all("SELECT * FROM receta_ingredientes WHERE receta_id = ? ORDER BY orden, id", r.id),
+    };
+  });
+  res.status(201).json(mapReceta(creada.receta, { ingredientes: creada.ingredientes, favorito: false }));
+}));
 
 // PUT /api/recetas/:id  (edición parcial, incluida la imagen; reemplaza ingredientes si se envían)
-router.put("/:id", auth, (req, res) => {
-  const existente = q.get("SELECT * FROM recetas WHERE id = ?", req.params.id);
+router.put("/:id", auth, asyncHandler(async (req, res) => {
+  const existente = await q.get("SELECT * FROM recetas WHERE id = ?", req.params.id);
   if (!existente) return res.status(404).json({ error: "receta no encontrada" });
   const r = req.body || {};
-  q.run(
+  const actualizado = await db.transaction(async (tx) => {
+    const update = await tx.run(
     `UPDATE recetas SET
        titulo                 = COALESCE(?, titulo),
        descripcion            = COALESCE(?, descripcion),
@@ -301,20 +301,27 @@ router.put("/:id", auth, (req, res) => {
     r.nutri_grasas ?? null,
     r.nutri_fibra ?? null,
     r.pasos ? JSON.stringify(r.pasos) : null,
-    r.publica == null ? null : r.publica ? 1 : 0,
-    req.params.id
-  );
-  if (Array.isArray(r.ingredientes)) insertarIngredientes(req.params.id, r.ingredientes);
+     r.publica == null ? null : !!r.publica,
+     req.params.id
+    );
+    if (!update.changes) return null;
+    if (Array.isArray(r.ingredientes)) await insertarIngredientes(tx, req.params.id, r.ingredientes);
+    return {
+      receta: await tx.get("SELECT * FROM recetas WHERE id = ?", req.params.id),
+      ingredientes: await tx.all("SELECT * FROM receta_ingredientes WHERE receta_id = ? ORDER BY orden, id", req.params.id),
+    };
+  });
+  if (!actualizado) return res.status(404).json({ error: "receta no encontrada" });
 
-  const fav = !!(req.user && q.get(
+  const fav = !!(req.user && await q.get(
     "SELECT 1 FROM favoritos WHERE usuario_id = ? AND receta_id = ?",
     req.user.id,
     req.params.id
   ));
-  res.json(mapReceta(q.get("SELECT * FROM recetas WHERE id = ?", req.params.id), {
-    ingredientes: ingredientesDe(req.params.id),
+  res.json(mapReceta(actualizado.receta, {
+    ingredientes: actualizado.ingredientes,
     favorito: fav,
   }));
-});
+}));
 
 module.exports = router;
