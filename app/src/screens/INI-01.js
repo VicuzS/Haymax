@@ -57,14 +57,14 @@ export default function INI_01() {
       <K.QuickAction
         icon="restaurant-outline"
         label="Planificar un plato nuevo"
-        sub="Armar el menú de la semana"
+        sub="Abre el calendario de planificación"
         variant="primary"
-        onPress={() => go("PLA-01")}
+        onPress={() => go("PLA-05")}
       />
       <K.QuickAction
         icon="calendar-outline"
         label="Ver mi plan de la semana"
-        onPress={() => go("PLA-05")}
+        onPress={() => go("PLA-09")}
       />
 
       <K.SectionTitle title="Tu despensa" action="Ver todo" onPress={() => go("DES-01")} />

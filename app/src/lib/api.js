@@ -273,6 +273,10 @@ export async function getPreparar(id) {
 }
 
 export async function getPlanSemana() {
+  return getPlanSemanaDe();
+}
+
+export async function getPlanSemanaDe(desde) {
   if (!(await enCuenta())) {
     const plan = mealPlanMock.map((m) => ({ ...m, receta: D.recetaById(m.recetaId) }));
     return {
@@ -282,7 +286,15 @@ export async function getPlanSemana() {
       porComprar: porComprarDe(plan, pantryMock),
     };
   }
-  const [planes, recetas, despensa] = await Promise.all([rf("/planes"), rf("/recetas"), rf("/despensa")]);
+  const hasta = desde
+    ? (() => {
+        const fecha = new Date(`${String(desde).slice(0, 10)}T00:00:00`);
+        fecha.setDate(fecha.getDate() + 6);
+        return fecha.toISOString().slice(0, 10);
+      })()
+    : null;
+  const desdeUrl = desde ? `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}` : "";
+  const [planes, recetas, despensa] = await Promise.all([rf("/planes" + desdeUrl), rf("/recetas"), rf("/despensa")]);
   const rs = recetas.map(aReceta);
   const pantry = despensa.map(aInsumo);
   const plan = planes.map((p) => aPlan(p, rs));
@@ -405,9 +417,12 @@ export async function cerrarSesion() {
 }
 
 // — Escrituras —
-export async function setCompraListo(id) {
+export async function setCompraListo(id, valor) {
   if (await enCuenta()) {
-    return rf("/compras/" + id, { method: "PUT" });
+    return rf("/compras/" + id, {
+      method: "PUT",
+      body: valor == null ? undefined : { comprado: !!valor },
+    });
   }
   const i = shoppingMock.findIndex((x) => x.id === id);
   if (i >= 0) shoppingMock.splice(i, 1, { ...shoppingMock[i], listo: !shoppingMock[i].listo });
@@ -420,6 +435,30 @@ export async function agregarCompra({ nombre, cantidad = "1", unidad_medida = "u
     method: "POST",
     body: { nombre, cantidad: String(cantidad), unidad_medida, seccion, comprado: false },
   });
+}
+
+export async function crearItemCompra({ nombre, cantidad = "1", unidad_medida, seccion = "Mercado de abastos" } = {}) {
+  const limpio = String(nombre || "").trim();
+  if (!limpio) throw new Error("Escribe el nombre del ítem.");
+  const existentes = await rf("/compras");
+  const normalizar = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (existentes.some((item) => normalizar(item.nombre) === normalizar(limpio))) {
+    throw new Error("Ese ítem ya está en tu lista.");
+  }
+  return rf("/compras", {
+    method: "POST",
+    body: { nombre: limpio, cantidad: String(cantidad || "1"), unidad_medida, seccion, comprado: false },
+  });
+}
+
+export async function quitarCompra(id) {
+  return eliminarCompra(id);
+}
+
+export async function quitarComprados() {
+  const items = (await rf("/compras")).filter((item) => item.comprado || item.listo);
+  for (const item of items) await eliminarCompra(item.id);
+  return { quitados: items.length };
 }
 
 export async function eliminarCompra(id) {
@@ -501,16 +540,36 @@ export async function ajustarAlCocinar(filas) {
   ajustarDespensa(filas);
 }
 
-export async function planificarPlato({ recetaId, dia, comida = "almuerzo", porciones }) {
+export async function getPlanesEntre(desde, hasta) {
+  const query = desde && hasta ? `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}` : "";
+  return rf("/planes" + query);
+}
+
+export async function planificarPlato({ recetaId, fecha, dia, comida = "almuerzo", porciones }) {
   if (await enCuenta()) {
     return rf("/planes", {
       method: "POST",
-      body: { id: "M" + Date.now(), dia, comida, receta_id: recetaId, porciones },
+      body: { fecha, dia, comida, receta_id: recetaId, porciones },
     });
   }
-  const p = { id: "M" + (mealPlanMock.length + 1), dia, comida, recetaId, porciones };
+  const p = { id: "M" + (mealPlanMock.length + 1), dia: dia || fecha, fecha, comida, recetaId, porciones };
   mealPlanMock.push(p);
   return p;
+}
+
+export async function actualizarPlan(id, { recetaId, fecha, dia, comida, porciones, completado } = {}) {
+  const body = {};
+  if (recetaId) body.receta_id = recetaId;
+  if (fecha) body.fecha = fecha;
+  else if (dia) body.dia = dia;
+  if (comida) body.comida = comida;
+  if (porciones != null) body.porciones = porciones;
+  if (completado != null) body.completado = !!completado;
+  return rf("/planes/" + encodeURIComponent(id), { method: "PUT", body });
+}
+
+export async function eliminarPlan(id) {
+  return rf("/planes/" + encodeURIComponent(id), { method: "DELETE" });
 }
 
 async function altaEnDespensa(items) {

@@ -5,7 +5,7 @@ import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import useApi from "../hooks/useApi";
-import { getReceta, planificarPlato, actualizarPlan } from "../lib/api";
+import { getReceta, planificarPlato, actualizarPlan, getPlanesEntre } from "../lib/api";
 import { soles, ingredienteAlcanza } from "../lib/domain";
 import { fechaLarga } from "../lib/fechas";
 
@@ -19,6 +19,7 @@ export default function PLA_07({ receta: recetaId, fecha, comida = "almuerzo", p
   const { data, loading, error, recargar } = useApi(() => getReceta(recetaId));
   const [porciones, setPorciones] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [fallo, setFallo] = useState("");
 
   if (loading) {
     return (
@@ -44,11 +45,24 @@ export default function PLA_07({ receta: recetaId, fecha, comida = "almuerzo", p
     setGuardando(true);
     try {
       if (planId) {
-        await actualizarPlan(planId, { receta_id: r.id, fecha, comida, porciones: porc });
-      } else {
-        await planificarPlato({ recetaId: r.id, fecha, comida, porciones: porc });
+        // Edición de un plato existente: PUT parcial (requisito 3.c: guarda
+        // el día, la comida y la cantidad de porciones).
+        await actualizarPlan(planId, { recetaId: r.id, fecha, comida, porciones: porc });
+        go("PLA-08", { fecha, comida, nombre: r.nombre, porciones: String(porc), editado: true });
+        return;
       }
+      // Alta nueva: si la comida del día ya tiene otro plato, resolvemos el
+      // conflicto en PLA-04; si no, se guarda directamente.
+      const delDia = await getPlanesEntre(fecha, fecha);
+      const conflicto = (delDia || []).find((p) => p.comida === comida && p.receta_id !== r.id);
+      if (conflicto) {
+        go("PLA-04", { receta: r.id, porciones: String(porc), fecha, plan: conflicto.id, comida });
+        return;
+      }
+      await planificarPlato({ recetaId: r.id, fecha, comida, porciones: porc });
       go("PLA-08", { fecha, comida, nombre: r.nombre, porciones: String(porc) });
+    } catch (e) {
+      setFallo((e && e.message) || "No se pudo guardar el plan. Revisa tu conexión con la API.");
     } finally {
       setGuardando(false);
     }
@@ -96,7 +110,12 @@ export default function PLA_07({ receta: recetaId, fecha, comida = "almuerzo", p
         full
         onPress={confirmar}
       />
-      <K.LinkText label="Ver conflicto de horario (demo)" align="CENTER" onPress={() => go("PLA-04")} />
+      {fallo ? <K.Banner title={fallo} tone="RED" /> : null}
+      <K.LinkText
+        label="Ver mi plan de la semana"
+        align="CENTER"
+        onPress={() => go("PLA-09", { fecha })}
+      />
       <K.LinkText label="Cancelar" align="CENTER" onPress={() => go("PLA-05")} />
     </Screen>
   );

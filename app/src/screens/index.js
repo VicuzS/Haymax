@@ -1,5 +1,6 @@
 
-// Registro maestro de las 31 pantallas del inventario (cobertura 31/31).
+// Registro maestro de pantallas del inventario + el flujo extendido de
+// planificación (PLA-06..09, Fase 6).
 import { createElement } from "react";
 
 export const SCREEN_IDS = [
@@ -25,6 +26,10 @@ export const SCREEN_IDS = [
   "PLA-03",
   "PLA-04",
   "PLA-05",
+  "PLA-06",
+  "PLA-07",
+  "PLA-08",
+  "PLA-09",
   "COM-01",
   "PRE-01",
   "PRE-02",
@@ -143,7 +148,27 @@ export const SCREEN_META = {
     "hasFab": false
   },
   "PLA-05": {
-    "name": "Plan semanal (7 días)",
+    "name": "Calendario de planificación",
+    "tab": 2,
+    "hasFab": false
+  },
+  "PLA-06": {
+    "name": "Planificar: elegir platillo",
+    "tab": 2,
+    "hasFab": false
+  },
+  "PLA-07": {
+    "name": "Planificar: ajustar porciones",
+    "tab": 2,
+    "hasFab": false
+  },
+  "PLA-08": {
+    "name": "Platillo planificado (confirmación)",
+    "tab": 2,
+    "hasFab": false
+  },
+  "PLA-09": {
+    "name": "Plan de la semana (interactivo)",
     "tab": 2,
     "hasFab": false
   },
@@ -217,6 +242,10 @@ const LOADERS = {
   "PLA-03": () => require("./PLA-03").default,
   "PLA-04": () => require("./PLA-04").default,
   "PLA-05": () => require("./PLA-05").default,
+  "PLA-06": () => require("./PLA-06").default,
+  "PLA-07": () => require("./PLA-07").default,
+  "PLA-08": () => require("./PLA-08").default,
+  "PLA-09": () => require("./PLA-09").default,
   "COM-01": () => require("./COM-01").default,
   "PRE-01": () => require("./PRE-01").default,
   "PRE-02": () => require("./PRE-02").default,

@@ -1,36 +1,30 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
+import { go } from "../lib/nav";
+import { colors, spacing } from "../tokens";
 import useApi from "../hooks/useApi";
-import { colors, radius, spacing, typography } from "../tokens";
 import {
-  agregarCompra,
-  actualizarCompra,
-  eliminarCompra,
-  generarListaCompras,
   getCompras,
   setCompraListo,
+  crearItemCompra,
+  quitarCompra,
+  quitarComprados,
+  generarListaCompras,
 } from "../lib/api";
 
 const NOMBRE = "Lista de compras";
-const SECCIONES = ["Supermercado", "Mercado de abastos"];
+// Orden preferido de secciones; las demás se agregan al final.
+const PRINCIPALES = ["Mercado de abastos", "Supermercado"];
 
 export default function COM_01() {
   const { data, loading, error, recargar } = useApi(getCompras);
   const [nombre, setNombre] = useState("");
-  const [cantidad, setCantidad] = useState("1");
-  const [unidad, setUnidad] = useState("und");
-  const [seccion, setSeccion] = useState("Mercado de abastos");
-  const [editandoId, setEditandoId] = useState(null);
-  const [editNombre, setEditNombre] = useState("");
-  const [editCantidad, setEditCantidad] = useState("");
-  const [editUnidad, setEditUnidad] = useState("und");
-  const [editSeccion, setEditSeccion] = useState("Mercado de abastos");
+  const [cantidad, setCantidad] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const [mensaje, setMensaje] = useState("");
+  const [aviso, setAviso] = useState("");
 
   if (loading) {
     return (
@@ -48,227 +42,156 @@ export default function COM_01() {
   }
 
   const { items, prog } = data;
-  const grupos = Array.from(new Set([
-    ...SECCIONES,
-    ...items.map((item) => item.seccion).filter(Boolean),
-  ]));
 
-  const toggle = async (id) => {
+  const secciones = [
+    ...PRINCIPALES.filter((sec) => items.some((i) => i.seccion === sec)),
+    ...Array.from(new Set(items.map((i) => i.seccion).filter((sec) => PRINCIPALES.indexOf(sec) === -1))),
+  ];
+
+  const conError = (e) => setAviso((e && e.message) || "Algo salió mal. Revisa tu conexión con la API.");
+
+  const toggle = async (it) => {
+    if (ocupado) return;
     setOcupado(true);
-    setMensaje("");
     try {
-      await setCompraListo(id);
+      await setCompraListo(it.id, !it.listo);
+      setAviso("");
       recargar({ silencioso: true });
     } catch (e) {
-      setMensaje(e.message || "No se pudo actualizar el artículo.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const quitar = async (id) => {
-    setOcupado(true);
-    setMensaje("");
-    try {
-      await eliminarCompra(id);
-      recargar({ silencioso: true });
-    } catch (e) {
-      setMensaje(e.message || "No se pudo quitar el artículo.");
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const editar = (item) => {
-    setEditandoId(item.id);
-    setEditNombre(item.nombre);
-    setEditCantidad(String(item.cantidad || "1"));
-    setEditUnidad(item.unidad_medida || "und");
-    setEditSeccion(item.seccion || "Mercado de abastos");
-    setMensaje("");
-  };
-
-  const guardarEdicion = async () => {
-    if (!editNombre.trim() || !editCantidad.trim() || !editUnidad.trim()) {
-      setMensaje("Completa el producto, la cantidad y la unidad.");
-      return;
-    }
-    setOcupado(true);
-    setMensaje("");
-    try {
-      await actualizarCompra(editandoId, {
-        nombre: editNombre.trim(),
-        cantidad: editCantidad.trim(),
-        unidad_medida: editUnidad.trim(),
-        seccion: editSeccion,
-      });
-      setEditandoId(null);
-      recargar({ silencioso: true });
-      setMensaje("Artículo actualizado.");
-    } catch (e) {
-      setMensaje(e.message || "No se pudo actualizar el artículo.");
+      conError(e);
     } finally {
       setOcupado(false);
     }
   };
 
   const agregar = async () => {
-    if (!nombre.trim() || !cantidad.trim() || !unidad.trim()) {
-      setMensaje("Completa el producto, la cantidad y la unidad.");
-      return;
-    }
+    if (ocupado) return;
     setOcupado(true);
-    setMensaje("");
     try {
-      await agregarCompra({ nombre: nombre.trim(), cantidad: cantidad.trim(), unidad_medida: unidad.trim(), seccion });
+      await crearItemCompra({ nombre, cantidad });
       setNombre("");
-      setCantidad("1");
-      setUnidad("und");
+      setCantidad("");
+      setAviso("");
       recargar({ silencioso: true });
-      setMensaje("Artículo agregado a la lista.");
     } catch (e) {
-      setMensaje(e.message || "No se pudo agregar el artículo.");
+      conError(e);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const limpiarComprados = async () => {
+    if (ocupado) return;
+    setOcupado(true);
+    try {
+      await quitarComprados();
+      setAviso("");
+      recargar({ silencioso: true });
+    } catch (e) {
+      conError(e);
     } finally {
       setOcupado(false);
     }
   };
 
   const generar = async () => {
+    if (ocupado) return;
     setOcupado(true);
-    setMensaje("");
     try {
-      const resultado = await generarListaCompras();
+      await generarListaCompras();
+      setAviso("");
       recargar({ silencioso: true });
-      setMensaje(resultado.creados
-        ? `Se agregaron ${resultado.creados} artículo${resultado.creados === 1 ? "" : "s"} faltante${resultado.creados === 1 ? "" : "s"}.`
-        : "No hay faltantes nuevos para agregar desde el plan de esta semana.");
     } catch (e) {
-      setMensaje(e.message || "No se pudo generar la lista desde el plan.");
+      conError(e);
     } finally {
       setOcupado(false);
     }
   };
 
+  const quitarUno = async (it) => {
+    if (ocupado) return;
+    setOcupado(true);
+    try {
+      await quitarCompra(it.id);
+      setAviso("");
+      recargar({ silencioso: true });
+    } catch (e) {
+      conError(e);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const valorDe = (it) => {
+    const cant = it.cantidad != null ? String(it.cantidad) : "";
+    return it.unidad_medida ? `${cant} ${it.unidad_medida}` : cant;
+  };
+
   return (
     <Screen id="COM-01" name={NOMBRE}>
-      <K.Progress label="Tu lista de compras" right={`${prog.listos} de ${prog.total} artículos listos`} pct={prog.pct} />
+      <K.Progress label="Tu lista de compras" right={`${prog.listos} de ${prog.total} ítems`} pct={prog.pct} />
 
-      <Button label="Generar faltantes del plan de esta semana" variant="outline" full loading={ocupado} onPress={generar} />
-
-      {mensaje ? (
-        <K.Banner
-          title={mensaje}
-          tone={/no se pudo|completa|obligatorio|inválid|sesión|token|error/i.test(mensaje) ? undefined : "GREEN"}
+      {prog.listos > 0 ? (
+        <K.Note
+          text={`${prog.listos} ítems ya están marcados como comprados.`}
+          onPress={limpiarComprados}
         />
       ) : null}
 
-      {items.length === 0 ? (
-        <K.EmptyState title="Tu lista está vacía" sub="Agrega artículos o genera los faltantes de tu plan semanal." />
-      ) : grupos.map((grupo) => {
-        const delGrupo = items.filter((item) => item.seccion === grupo);
-        if (!delGrupo.length) return null;
+      <K.SectionTitle title="¿Te falta algo?" />
+      <K.InputField placeholder="Ítem (p. ej. Salsa de soya)" value={nombre} onChangeText={setNombre} />
+      <View style={styles.filaQty}>
+        <View style={styles.campoQty}>
+          <K.InputField
+            placeholder="Cantidad (p. ej. 2 kg)"
+            value={cantidad}
+            onChangeText={setCantidad}
+          />
+        </View>
+        <View style={styles.botonQty}>
+          <Button label="Agregar" full onPress={agregar} />
+        </View>
+      </View>
+
+      {secciones.map((sec) => {
+        const grupo = items.filter((i) => i.seccion === sec);
+        if (grupo.length === 0) return null;
         return (
-          <View key={grupo} style={styles.grupo}>
-            <K.SectionTitle title={grupo} />
-            <View style={styles.items}>
-              {delGrupo.map((item) => (
-                editandoId === item.id ? (
-                  <View key={item.id} style={styles.inlineForm}>
-                    <K.InputField placeholder="Producto" value={editNombre} onChangeText={setEditNombre} />
-                    <View style={styles.cantidadRow}>
-                      <View style={styles.cantidad}>
-                        <K.InputField placeholder="Cantidad" value={editCantidad} onChangeText={setEditCantidad} keyboardType="decimal-pad" />
-                      </View>
-                      <View style={styles.unidad}>
-                        <K.InputField placeholder="Unidad" value={editUnidad} onChangeText={setEditUnidad} />
-                      </View>
-                    </View>
-                    <K.Chips items={SECCIONES} active={editSeccion} onPressItem={setEditSeccion} />
-                    <View style={styles.editActions}>
-                      <Button label="Guardar" full loading={ocupado} onPress={guardarEdicion} />
-                      <Button label="Cancelar" variant="outline" full disabled={ocupado} onPress={() => setEditandoId(null)} />
-                    </View>
-                  </View>
-                ) : (
-                  <View key={item.id} style={styles.item}>
-                    <Pressable
-                      style={styles.itemMain}
-                      onPress={() => toggle(item.id)}
-                      disabled={ocupado}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: item.listo, disabled: ocupado }}
-                      accessibilityLabel={`${item.nombre}, ${item.cantidad}. ${item.listo ? "Comprado" : "Pendiente"}`}
-                    >
-                      <Ionicons
-                        name={item.listo ? "checkmark-circle" : "ellipse-outline"}
-                        size={23}
-                        color={item.listo ? colors.green : colors.muted}
-                      />
-                      <View style={styles.itemInfo}>
-                        <Text style={[styles.itemName, item.listo && styles.itemDone]}>{item.nombre}</Text>
-                        <Text style={styles.itemQuantity}>{item.cantidad}{item.unidad_medida ? ` · ${item.unidad_medida}` : ""}</Text>
-                      </View>
-                    </Pressable>
-                    <Pressable onPress={() => editar(item)} disabled={ocupado} style={styles.actionButton} accessibilityRole="button" accessibilityLabel={`Editar ${item.nombre}`}>
-                      <Ionicons name="create-outline" size={20} color={colors.primary} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => quitar(item.id)}
-                      disabled={ocupado}
-                      style={styles.deleteButton}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Quitar ${item.nombre} de la lista`}
-                    >
-                      <Ionicons name="trash-outline" size={20} color={colors.red} />
-                    </Pressable>
-                  </View>
-                )
+          <View key={sec} style={styles.grupo}>
+            <K.SectionTitle title={sec} />
+            <View style={styles.rows}>
+              {grupo.map((it) => (
+                <K.Row
+                  key={it.id}
+                  label={it.nombre}
+                  value={valorDe(it)}
+                  valueColor={it.listo ? colors.green : colors.text}
+                  icon={it.listo ? "✓" : undefined}
+                  onPress={() => toggle(it)}
+                />
               ))}
             </View>
+            {grupo
+              .filter((it) => it.listo)
+              .map((it) => (
+                <K.LinkText key={"q" + it.id} label={`Quitar ${it.nombre}`} onPress={() => quitarUno(it)} />
+              ))}
           </View>
         );
       })}
 
-      <View style={styles.form}>
-        <K.SectionTitle title="Agregar artículo" />
-        <K.InputField placeholder="Producto" value={nombre} onChangeText={setNombre} />
-        <View style={styles.cantidadRow}>
-          <View style={styles.cantidad}>
-            <K.InputField placeholder="Cantidad" value={cantidad} onChangeText={setCantidad} keyboardType="decimal-pad" />
-          </View>
-          <View style={styles.unidad}>
-            <K.InputField placeholder="Unidad" value={unidad} onChangeText={setUnidad} />
-          </View>
-        </View>
-        <K.Chips items={SECCIONES} active={seccion} onPressItem={setSeccion} />
-        <Button label="Agregar a la lista" full disabled={ocupado} onPress={agregar} />
-      </View>
+      <Button label="Generar desde mi plan de la semana" full onPress={generar} />
+      <Button label="Registrar compra escaneada" variant="outline" full onPress={() => go("DES-04")} />
+      <Button label="Repasar mi despensa" variant="outline" full onPress={() => go("DES-01")} />
+      {aviso ? <K.Banner title={aviso} tone="RED" /> : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  grupo: { gap: 2 },
-  items: { gap: 4 },
-  inlineForm: { gap: spacing.sm, borderRadius: radius.md, padding: spacing.sm, backgroundColor: colors.white },
-  editActions: { flexDirection: "row", gap: spacing.sm },
-  item: {
-    minHeight: 58,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.white,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  itemMain: { flex: 1, minHeight: 58, flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.sm },
-  itemInfo: { flex: 1, paddingVertical: spacing.xs },
-  itemName: { color: colors.text, fontSize: typography.sizes.body, fontWeight: typography.weights.semibold },
-  itemDone: { color: colors.muted, textDecorationLine: "line-through" },
-  itemQuantity: { color: colors.sub, fontSize: typography.sizes.small, marginTop: 2 },
-  actionButton: { minWidth: 44, minHeight: 48, alignItems: "center", justifyContent: "center" },
-  deleteButton: { minWidth: 44, minHeight: 48, alignItems: "center", justifyContent: "center" },
-  form: { gap: spacing.sm, marginTop: spacing.sm, padding: spacing.md, backgroundColor: colors.white, borderRadius: radius.lg },
-  cantidadRow: { flexDirection: "row", gap: spacing.sm },
-  cantidad: { flex: 1 },
-  unidad: { flex: 1 },
+  grupo: { gap: 0 },
+  rows: { gap: 0 },
+  filaQty: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  campoQty: { flex: 1 },
+  botonQty: { flex: 1 },
 });
