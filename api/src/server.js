@@ -10,10 +10,11 @@ const insumosRoutes = require("./routes/insumos");
 const planesRoutes = require("./routes/planes");
 const favoritosRoutes = require("./routes/favoritos");
 const comprasRoutes = require("./routes/compras");
+const ocrRoutes = require("./routes/ocr");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 
 app.get("/api/salud", (_req, res) =>
   res.json({ ok: true, servicio: "haymax-api", version: "1.0.0" })
@@ -26,9 +27,13 @@ app.use("/api/insumos", insumosRoutes);
 app.use("/api/planes", planesRoutes);
 app.use("/api/favoritos", favoritosRoutes);
 app.use("/api/compras", comprasRoutes);
+app.use("/api/ocr", ocrRoutes);
 
 app.use((req, res) => res.status(404).json({ error: "ruta no encontrada" }));
 app.use((err, _req, res, _next) => {
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({ error: "La imagen supera el límite permitido de 8 MB." });
+  }
   console.error(err);
   res.status(500).json({ error: "error interno del servidor" });
 });

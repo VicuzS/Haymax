@@ -6,7 +6,7 @@ import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
 import useApi from "../hooks/useApi";
-import { getPlanSemana } from "../lib/api";
+import { generarListaCompras, getPlanSemana } from "../lib/api";
 import { faltantes } from "../lib/domain";
 
 const NOMBRE = "Mi plan de la semana";
@@ -22,7 +22,22 @@ const DIAS = [
 
 export default function PLA_05() {
   const [sel, setSel] = useState("Ma");
+  const [generandoCompras, setGenerandoCompras] = useState(false);
+  const [errorCompras, setErrorCompras] = useState("");
   const { data, loading, error, recargar } = useApi(getPlanSemana);
+
+  const generarCompras = async () => {
+    setGenerandoCompras(true);
+    setErrorCompras("");
+    try {
+      await generarListaCompras();
+      go("COM-01");
+    } catch (e) {
+      setErrorCompras(e.message || "No se pudo generar la lista de compras.");
+    } finally {
+      setGenerandoCompras(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -85,7 +100,8 @@ export default function PLA_05() {
         sub="Puedes planificar desde hoy: no hace falta esperar al lunes."
       />
       <Button label="Planificar un plato para esa semana" full onPress={() => go("PLA-01")} />
-      <Button label="Generar lista de compras" variant="outline" full onPress={() => go("COM-01")} />
+      {errorCompras ? <K.Banner title={errorCompras} /> : null}
+      <Button label="Generar lista de compras" variant="outline" full loading={generandoCompras} onPress={generarCompras} />
     </Screen>
   );
 }

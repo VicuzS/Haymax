@@ -42,7 +42,7 @@ function fechaDeDia(dia, base = hoy()) {
   return sumarDias(lunesDe(base), offset);
 }
 
-// Estado de vencimiento calculado por SQLite (3 días de aviso).
+// Estado de vencimiento calculado por PostgreSQL (3 días de aviso).
 const ESTADO_SQL = `CASE
   WHEN fecha_vencimiento IS NULL THEN 'ok'
   WHEN fecha_vencimiento < CURRENT_DATE THEN 'vencido'

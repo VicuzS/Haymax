@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { Alert, View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
 import useApi from "../hooks/useApi";
-import { getRecetaDetalle, agregarFavorito, quitarFavorito } from "../lib/api";
+import { getRecetaDetalle, agregarFavorito, quitarFavorito, enviarFaltantesALista } from "../lib/api";
 import { norm, precioPorPorcion, ahorroPorPorcion, soles, dificultadTexto } from "../lib/domain";
 
 const NOMBRE = "Detalle de receta";
@@ -62,6 +62,15 @@ export default function REC_02({ receta }) {
     }
   };
 
+  const agregarFaltantes = async () => {
+    try {
+      await enviarFaltantesALista(faltantes);
+      go("COM-01");
+    } catch (error) {
+      Alert.alert("No se pudo agregar", error.message || "Los faltantes siguen disponibles en la receta.");
+    }
+  };
+
   return (
     <Screen id="REC-02" name={NOMBRE}>
       <View style={styles.heroWrap}>
@@ -104,11 +113,7 @@ export default function REC_02({ receta }) {
       </View>
 
       {faltantes.length > 0 ? (
-        <K.LinkText
-          label="Agregar faltantes a mi lista de compras"
-          align="CENTER"
-          onPress={() => go("COM-01")}
-        />
+        <Button label="Agregar faltantes a mi lista de compras" variant="outline" full onPress={agregarFaltantes} />
       ) : null}
 
       <K.Card

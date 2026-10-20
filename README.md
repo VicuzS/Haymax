@@ -37,7 +37,7 @@ Es una aplicación móvil diseñada para el hogar peruano que reduce el desperdi
 * **Frontend Móvil:** React Native + Expo (Expo Router)
 * **Backend:** Node.js (Express) + JWT
 * **Base de Datos:** PostgreSQL (`pg`) en un contenedor Docker
-* **Servicios OCR:** pendiente de integración (Google Cloud Vision API / Tesseract previstos)
+* **OCR:** Gemini analiza boletas y listas de compras; el usuario confirma los productos antes de agregarlos
 * **Diseño:** Figma
 
 ---
@@ -77,6 +77,8 @@ npm run dev                 # API en http://localhost:4000/api/salud
 La conexión predeterminada usa `postgres://haymax:haymax_dev_password@localhost:5432/haymax`.
 Si ya tienes datos en `api/haymax.db` que quieres conservar, impórtalos antes
 del seed con `npm run migrate:sqlite` desde `api/`.
+La clave `GEMINI_API_KEY` se configura en `api/.env` y solo la usa el backend;
+no la agregues a variables `EXPO_PUBLIC_*` del frontend.
 
 ### 3. Frontend móvil (Expo)
 

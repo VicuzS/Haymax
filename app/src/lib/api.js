@@ -2,7 +2,7 @@
 // Capa de datos del app (Fase 5).
 //
 // Modo CUENTA (sesión con token JWT): todo va a la API real haymax-api
-// (Express + SQLite) según config.API_URL. Si la API no responde, la pantalla
+// (Express + PostgreSQL) según config.API_URL. Si la API no responde, la pantalla
 // muestra el estado de error con "Reintentar".
 //
 // Todas las operaciones personales requieren una sesión de cuenta válida.
@@ -27,6 +27,7 @@ import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } f
 // Pendientes del registro manual (DES-06/07) y últimos agregados (DES-08).
 let pendientesManuales = manualAddsMock.map((m) => ({ ...m }));
 let ultimosAgregados = lastAddedMock.map((m) => ({ ...m }));
+let escaneoPendiente = null;
 
 export function getPendientesManuales() {
   return pendientesManuales.map((m) => ({ ...m }));
@@ -34,6 +35,33 @@ export function getPendientesManuales() {
 
 export function getUltimosAgregados() {
   return ultimosAgregados.map((m) => ({ ...m }));
+}
+
+export function getEscaneoPendiente() {
+  return escaneoPendiente
+    ? { ...escaneoPendiente, items: escaneoPendiente.items.map((item) => ({ ...item })) }
+    : null;
+}
+
+export async function analizarImagenDespensa({ base64, mimeType, modo, uri }) {
+  await enCuenta();
+  const resultado = await rf("/ocr/analizar", {
+    method: "POST",
+    body: {
+      imagen_base64: base64,
+      mime_type: mimeType,
+      tipo: modo === "Boleta" ? "boleta" : "lista",
+    },
+  });
+  escaneoPendiente = {
+    tipo: resultado.tipo_documento,
+    uri,
+    items: (resultado.items || []).map((item, index) => ({
+      ...item,
+      id: `OCR-${Date.now()}-${index}`,
+    })),
+  };
+  return getEscaneoPendiente();
 }
 
 // — HTTP hacia haymax-api —
@@ -386,6 +414,32 @@ export async function setCompraListo(id) {
   return getCompras();
 }
 
+export async function agregarCompra({ nombre, cantidad = "1", unidad_medida = "und", seccion = "Mercado de abastos" }) {
+  await enCuenta();
+  return rf("/compras", {
+    method: "POST",
+    body: { nombre, cantidad: String(cantidad), unidad_medida, seccion, comprado: false },
+  });
+}
+
+export async function eliminarCompra(id) {
+  await enCuenta();
+  return rf("/compras/" + encodeURIComponent(id), { method: "DELETE" });
+}
+
+export async function actualizarCompra(id, cambios) {
+  await enCuenta();
+  return rf("/compras/" + encodeURIComponent(id), { method: "PUT", body: cambios });
+}
+
+export async function generarListaCompras(fecha) {
+  await enCuenta();
+  return rf("/compras/generar", {
+    method: "POST",
+    body: fecha ? { fecha } : {},
+  });
+}
+
 export async function enviarFaltantesALista(ings) {
   if (!(await enCuenta())) {
     agregarALista(ings);
@@ -395,18 +449,19 @@ export async function enviarFaltantesALista(ings) {
   const norm = (s) =>
     String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const existentes = new Set(lista.map((c) => norm(c.nombre)));
-  let n = 0;
   for (const raw of ings) {
-    const limpio = raw.replace(/^[0-9.,]+\s*(g|kg|ml|l|und|unid|atado|docena)?\s*(de\s+)?/i, "").trim();
-    const key = norm(limpio || raw);
+    const texto = String(raw || "").trim();
+    const m = texto.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([^\s]+)?\s*(?:de\s+)?(.+)$/i);
+    const limpio = m ? m[3].trim() : texto;
+    const key = norm(limpio);
     if (!limpio || existentes.has(key)) continue;
     existentes.add(key);
     await rf("/compras", {
       method: "POST",
       body: {
-        id: "CL" + Date.now() + "-" + n++,
         nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
-        cantidad: "1",
+        cantidad: m ? m[1].replace(",", ".") : "1",
+        unidad_medida: m && m[2] ? m[2] : "und",
         seccion: "Mercado de abastos",
         listo: false,
       },
@@ -461,16 +516,19 @@ export async function planificarPlato({ recetaId, dia, comida = "almuerzo", porc
 async function altaEnDespensa(items) {
   let n = 0;
   for (const it of items) {
-    const { cantidad, unidad } = parseCantidad(it.cantidad);
+    const parseada = parseCantidad(it.cantidad);
+    const cantidad = typeof it.cantidad === "number" ? it.cantidad : parseada.cantidad;
+    const unidad = it.unidad || it.unidad_medida || parseada.unidad;
     await rf("/despensa", {
       method: "POST",
       body: {
         id: it.id || "PX" + Date.now() + "-" + n++,
         nombre: it.nombre,
-        categoria: "Secos",
+        categoria: it.categoria || "Otros",
         cantidad,
         unidad,
-        estado: "ok",
+        fecha_vencimiento: it.fecha_vencimiento || null,
+        ubicacion: it.ubicacion || "Despensa",
       },
     });
   }
@@ -483,6 +541,13 @@ export async function agregarUltimos(items) {
     addLastAdded(items);
   }
   ultimosAgregados = items.map((m) => ({ ...m }));
+}
+
+export async function confirmarEscaneo(items) {
+  await enCuenta();
+  await altaEnDespensa(items);
+  ultimosAgregados = items.map((item) => ({ ...item }));
+  escaneoPendiente = null;
 }
 
 export async function agregarManualInsumo(item) {

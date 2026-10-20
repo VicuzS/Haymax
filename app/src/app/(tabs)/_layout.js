@@ -52,7 +52,7 @@ function TabBar({ state, descriptors, navigation }) {
     // La cámara ocupa el espacio central entre Despensa y Planificar.
     if (route.name === "despensa") {
       nodes.push(
-        <Pressable key="cam" style={styles.camWrap} onPress={() => go("DES-03")} accessibilityLabel="Escanear insumos">
+        <Pressable key="cam" style={styles.camWrap} onPress={() => go("DES-04")} accessibilityLabel="Tomar o subir imagen de insumos">
           <View style={styles.cam}>
             <Ionicons name="camera" size={22} color={colors.white} />
           </View>

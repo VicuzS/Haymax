@@ -68,6 +68,7 @@ api/
     │   └── auth.js            # auth JWT (Persona 1)
     └── routes/
         ├── auth.js            # Persona 1
+        ├── ocr.js             # extracción de productos con Gemini
         ├── despensa.js        # Persona 2
         ├── insumos.js         # Persona 2
         ├── recetas.js         # Persona 3
@@ -264,6 +265,18 @@ Al registrarse, el usuario recibe automáticamente un **hogar personal** (helper
 `POST /despensa` crea el producto en el catálogo si no existe (helper
 `db.productoId`).
 
+### 4.2.1 Análisis OCR — Gemini
+
+| Método | Ruta | Auth | Cuerpo | Respuesta |
+| ------ | ---- | ---- | ------ | --------- |
+| POST | `/ocr/analizar` | sí | `{ imagen_base64, mime_type, tipo: "boleta"\|"lista" }` | `{ tipo_documento, items[] }` |
+
+La imagen se limita a 8 MB y se envía desde el backend a Gemini con salida JSON
+estructurada. Cada producto devuelve `{ nombre, cantidad, unidad, categoria,
+precio, requiere_revision }`. La aplicación permite revisar/corregir el listado
+antes de ejecutar altas individuales en `/despensa`. La clave se guarda en
+`api/.env` como `GEMINI_API_KEY` y nunca se envía al cliente.
+
 ### 4.3 Recetas y favoritos — Persona 3
 
 | Método | Ruta | Auth | Cuerpo / Query | Respuesta |
@@ -315,7 +328,7 @@ Al registrarse, el usuario recibe automáticamente un **hogar personal** (helper
 | GET | `/compras` | sí | — | `[compra]` |
 | POST | `/compras` | sí | `{ nombre, cantidad?, unidad_medida?\|unidad?, seccion?, comprado?\|listo?, producto_id? }` | `201 compra` |
 | POST | `/compras/generar` | sí | `{ fecha? }` | `201 { creados }` |
-| PUT | `/compras/:id` | sí | — | `200 compra` (alterna `comprado`) |
+| PUT | `/compras/:id` | sí | `{ nombre?, cantidad?, unidad_medida?, seccion?, comprado?/listo? }` o — | `200 compra` (sin cuerpo alterna `comprado`) |
 | DELETE | `/compras/:id` | sí | — | `204` |
 
 ```jsonc
@@ -328,9 +341,11 @@ Al registrarse, el usuario recibe automáticamente un **hogar personal** (helper
   "seccion": "Mercado de abastos", "listo": false, "comprado": false, "producto_id": null }
 ```
 
-`POST /compras/generar` recorre el plan (semana de `fecha`, por defecto hoy) y
-agrega a la lista los ingredientes que **no** están en la despensa ni ya en la
-lista.
+`POST /compras/generar` recorre los planes no completados de la semana de
+`fecha` (por defecto hoy), escala ingredientes según sus porciones, descuenta
+cantidades/unidades compatibles de la despensa y agrega solo faltantes que aún
+no estén en la lista. La pantalla permite agregar, marcar como comprado y
+eliminar artículos manuales.
 
 ---
 

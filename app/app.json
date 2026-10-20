@@ -27,7 +27,15 @@
     },
     "plugins": [
       "expo-router",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Haymax usa la cámara para leer boletas y listas de compras.",
+          "photosPermission": "Haymax permite seleccionar imágenes de boletas y listas.",
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }
