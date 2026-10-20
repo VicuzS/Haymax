@@ -7,6 +7,7 @@ import { go } from "../lib/nav";
 import { colors } from "../tokens";
 import useApi from "../hooks/useApi";
 import { getRecetaDetalle, agregarFavorito, quitarFavorito } from "../lib/api";
+import { hoyIso } from "../lib/fechas";
 import { norm, precioPorPorcion, ahorroPorPorcion, soles, dificultadTexto } from "../lib/domain";
 
 const NOMBRE = "Detalle de receta";
@@ -116,7 +117,7 @@ export default function REC_02({ receta }) {
         sub={`${r.calorias} kcal por porción · rinde ${r.porciones} porciones · ${faltantes.length === 0 ? "todo disponible" : `faltan ${faltantes.length} insumos`}`}
       />
 
-      <Button label="Planificar este plato" full onPress={() => go("PLA-01", { receta: r.id })} />
+      <Button label="Planificar este plato" full onPress={() => go("PLA-07", { receta: r.id, fecha: hoyIso(), comida: "almuerzo" })} />
       <Button label="Cocinar ahora" variant="outline" full onPress={() => go("PRE-01", { receta: r.id })} />
     </Screen>
   );

@@ -91,11 +91,17 @@ router.post("/generar", (req, res) => {
   res.status(201).json({ creados });
 });
 
-// PUT /api/compras/:id  (alterna comprado/listo)
+// PUT /api/compras/:id  (alterna comprado/listo; si el cuerpo trae un valor
+// explícito `comprado` o `listo`, se fija ese valor en lugar de alternar).
 router.put("/:id", (req, res) => {
+  const p = req.body || {};
   const hogarId = hogarDe(req.user.id);
+  const expl = p.comprado != null ? !!p.comprado : p.listo != null ? !!p.listo : null;
   const r = q.run(
-    "UPDATE compras SET comprado = 1 - comprado WHERE id = ? AND hogar_id = ?",
+    expl == null
+      ? "UPDATE compras SET comprado = 1 - comprado WHERE id = ? AND hogar_id = ?"
+      : "UPDATE compras SET comprado = ? WHERE id = ? AND hogar_id = ?",
+    ...(expl == null ? [] : [expl ? 1 : 0]),
     req.params.id,
     hogarId
   );

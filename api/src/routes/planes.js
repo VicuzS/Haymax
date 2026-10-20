@@ -39,11 +39,21 @@ router.get("/", (req, res) => {
   res.json(rows.map(aPlan));
 });
 
+const COMIDAS = ["desayuno", "almuerzo", "cena"];
+
 // POST /api/planes  (acepta `fecha` ISO o `dia` tipo "lunes")
 router.post("/", (req, res) => {
   const p = req.body || {};
   if (!p.receta_id || !p.comida) {
     return res.status(400).json({ error: "receta_id y comida son obligatorios" });
+  }
+  if (COMIDAS.indexOf(p.comida) === -1) {
+    return res.status(400).json({ error: "comida inválida: usa desayuno, almuerzo o cena" });
+  }
+  // Validamos la receta ANTES de insertar (la llave foránea mandaría un 500).
+  const receta = q.get("SELECT id FROM recetas WHERE id = ?", p.receta_id);
+  if (!receta) {
+    return res.status(400).json({ error: "la receta no existe" });
   }
   const fecha = p.fecha || (p.dia ? fechaDeDia(p.dia) : hoy());
   const hogarId = hogarDe(req.user.id);
@@ -64,6 +74,12 @@ router.post("/", (req, res) => {
 router.put("/:id", (req, res) => {
   const p = req.body || {};
   const hogarId = hogarDe(req.user.id);
+  if (p.receta_id) {
+    const receta = q.get("SELECT id FROM recetas WHERE id = ?", p.receta_id);
+    if (!receta) return res.status(400).json({ error: "la receta no existe" });
+  }
+  // Conversión dia↔fecha también al editar (guía: p. ej. mover el plato al sábado).
+  if (!p.fecha && p.dia) p.fecha = fechaDeDia(p.dia);
   const r = q.run(
     `UPDATE planes SET
        receta_id  = COALESCE(?, receta_id),

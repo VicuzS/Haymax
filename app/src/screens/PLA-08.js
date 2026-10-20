@@ -8,15 +8,15 @@ import { fechaLarga } from "../lib/fechas";
 
 const NOMBRE = "Platillo planificado";
 
-// Post confirmación: check verde, mensaje con el día planificado y los dos
-// botones de salida del flujo.
-export default function PLA_08({ fecha, comida = "almuerzo", nombre = "", porciones = "1" }) {
+// Post confirmación: check verde, mensaje con el día planificado (o el plato
+// actualizado, si vino del reemplazo directo) y los dos botones de salida.
+export default function PLA_08({ fecha, comida = "almuerzo", nombre = "", porciones = "1", editado = false }) {
   const comidaBonita = comida.charAt(0).toUpperCase() + comida.slice(1);
   return (
-    <Screen id="PLA-08" name={NOMBRE}>
+    <Screen id="PLA-08" name={editado ? "Platillo actualizado" : NOMBRE}>
       <K.CheckCircle title="¡Listo!" />
       <Text style={styles.mensaje}>
-        Su platillo ha sido planificado para el día{" "}
+        {editado ? "Su platillo ha sido actualizado" : "Su platillo ha sido planificado"} para el día{" "}
         <Text style={styles.dia}>{fecha ? fechaLarga(fecha) : "—"}</Text>
       </Text>
       <K.TextLine text={`${comidaBonita} · ${nombre || "Platillo"} · ${porciones} porciones`} />

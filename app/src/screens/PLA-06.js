@@ -20,14 +20,20 @@ const COMIDAS = [
 
 // Estado visual según la cobertura de ingredientes que reporta el motor:
 // 100% -> normal · parcial -> imagen en blanco y negro · 0% -> filtro rojizo.
+// Los filtros se apilan como capas sobre la foto (mezcla por saturación).
 function estadoDe(d) {
   if (d.cobertura >= 100) {
-    return { overlay: null, pill: "Tienes todos los ingredientes", tone: "green", pct: "100% disponible lista" };
+    return { capas: [], pill: "Tienes todos los ingredientes", tone: "green", pct: "100% disponible lista" };
   }
   if (d.cobertura > 0) {
-    return { overlay: styles.ovGrises, pill: "Faltan algunos ingredientes", tone: "amber", pct: `${d.cobertura}% insumos listos` };
+    return { capas: [styles.filtroGris], pill: "Faltan algunos ingredientes", tone: "amber", pct: `${d.cobertura}% insumos listos` };
   }
-  return { overlay: styles.ovRojo, pill: "No tiene los ingredientes", tone: "red", pct: "0% insumos listos" };
+  return {
+    capas: [styles.filtroGris, styles.filtroRojo],
+    pill: "No tiene los ingredientes",
+    tone: "red",
+    pct: "0% insumos listos",
+  };
 }
 
 export default function PLA_06({ fecha, comida: comidaInicial, planId }) {
@@ -100,7 +106,9 @@ function TarjetaPlato({ plato, estado, onPress }) {
             <Text style={styles.fotoPhText}>Platillo</Text>
           </View>
         )}
-        {estado.overlay ? <View style={[StyleSheet.absoluteFill, styles.overlay, estado.overlay]} /> : null}
+        {estado.capas.map((capa, k) => (
+          <View key={k} style={[StyleSheet.absoluteFill, styles.overlay, capa]} />
+        ))}
         <View style={styles.pillPrecio}>
           <Text style={styles.pillPrecioText}>{soles(plato.precio)} total</Text>
         </View>
@@ -134,8 +142,10 @@ const styles = StyleSheet.create({
   fotoPh: { alignItems: "center", justifyContent: "center" },
   fotoPhText: { color: colors.primary, fontSize: typography.sizes.small },
   overlay: {},
-  ovGrises: { backgroundColor: "rgba(255,255,255,0.62)" }, // efecto blanco y negro
-  ovRojo: { backgroundColor: "rgba(198,40,40,0.45)" },      // filtro rojizo
+  // B/N real: la capa gris desatura la foto (mezcla por saturación).
+  filtroGris: { backgroundColor: "#9E9E9E", mixBlendMode: "saturation" },
+  // Wash rojizo encima de la desaturación (0% de cobertura).
+  filtroRojo: { backgroundColor: "rgba(198,40,40,0.5)" },
   pillPrecio: {
     position: "absolute",
     top: 8,
