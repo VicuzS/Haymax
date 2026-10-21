@@ -138,7 +138,7 @@ export default function COM_01() {
         />
       ) : null}
 
-      <K.SectionTitle title="¿Te falta algo?" />
+      <K.SectionTitle title="Agregar a la lista de compras" />
       <K.InputField placeholder="Ítem (p. ej. Salsa de soya)" value={nombre} onChangeText={setNombre} />
       <View style={styles.filaQty}>
         <View style={styles.campoQty}>

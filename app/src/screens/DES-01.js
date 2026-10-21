@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Screen from "../components/Screen";
+import Button from "../components/Button";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { colors } from "../tokens";
@@ -47,6 +48,7 @@ export default function DES_01() {
     <Screen id="DES-01" name={NOMBRE}>
       <K.InputField placeholder="Buscar insumo…" value={q} onChangeText={setQ} />
       <K.Chips items={CATS} active={cat} onPressItem={setCat} />
+      <Button label="Agregar insumos" full onPress={() => go("DES-03")} />
 
       {lista.length === 0 ? (
         <K.EmptyState title="Sin resultados" sub="Prueba otra categoría o limpia la búsqueda." />
