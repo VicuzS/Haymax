@@ -40,11 +40,7 @@ export function faltantes(receta, pantry = pantryMock) {
 // Normaliza cantidad+unidad a una base comparable: peso→gramos,
 // volumen→mililitros, resto→unidades.
 export function aBaseCantidad(cantidad, unidad) {
-  const n = Number(cantidad) || 0;
-  const u = norm(unidad);
-  if (["kg", "kilo", "kilos", "kilogramo", "kilogramos"].indexOf(u) !== -1) return n * 1000;
-  if (["l", "lt", "litro", "litros"].indexOf(u) !== -1) return n * 1000;
-  return n;
+  return (Number(cantidad) || 0) * factorUnidad(unidad);
 }
 
 // ¿La cantidad de un ingrediente alcanza para N porciones? Compara por
@@ -159,29 +155,134 @@ function buscarEnPantry(pantry = [], nombre, productoId) {
 // Descuento puro sobre un arreglo de insumos (lo usa la API real contra la
 // lista de /despensa; no muta el arreglo recibido). Cantidades negativas
 // suman (ajuste fino de PRE-02).
-function bucketUnidad(u) {
-  const n = norm(u);
-  if (["g", "gr", "gramo", "gramos", "kg"].indexOf(n) !== -1) return "peso";
-  if (["und", "unid", "unidad", "unidades", "lata", "latas", "atado", "docena", "botella", "paquete"].indexOf(n) !== -1) {
-    return "cantidad";
+const FAMILIAS = {
+  peso: { g: 1, gr: 1, gramo: 1, gramos: 1, kg: 1000, kilo: 1000, kilos: 1000, kilogramo: 1000, kilogramos: 1000 },
+  volumen: { ml: 1, mililitro: 1, mililitros: 1, l: 1000, lt: 1000, litro: 1000, litros: 1000 },
+};
+const CONTABLES = ["und", "unid", "unidad", "unidades", "lata", "latas", "atado", "docena", "botella", "paquete"];
+
+// Factor para llevar una unidad a su base (g, ml o unidad).
+function factorUnidad(u) {
+  const n = norm(u).trim();
+  for (const f of Object.keys(FAMILIAS)) {
+    if (FAMILIAS[f][n] != null) return FAMILIAS[f][n];
   }
+  return 1;
+}
+
+// Familia de la unidad: peso, volumen, cantidad (contables) o la propia unidad
+// (tazas, cucharadas...), que solo se compara consigo misma.
+export function familiaUnidad(u) {
+  const n = norm(u).trim();
+  for (const f of Object.keys(FAMILIAS)) {
+    if (FAMILIAS[f][n] != null) return f;
+  }
+  if (CONTABLES.indexOf(n) !== -1) return "cantidad";
   return n;
 }
 
-export function descontarEn(items, descuentos) {
+const bucketUnidad = familiaUnidad;
+
+const redondear = (n) => Math.round(n * 1000) / 1000;
+
+// ¿El nombre de un ingrediente y el de un insumo se refieren al mismo producto?
+// (palabras de 4+ letras en común, sin acentos). Misma regla que el motor.
+export function coincideNombre(a, b) {
+  const na = norm(a);
+  const nb = norm(b);
+  if (!na || !nb) return false;
+  const wa = na.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  const wb = nb.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  return wa.some((w) => nb.indexOf(w) !== -1) || wb.some((w) => na.indexOf(w) !== -1);
+}
+
+// Ingredientes de una receta escalados a `porc` porciones. Fuente ÚNICA para
+// PRE-01 (descuento) y PRE-02 (ajuste), de modo que ambos usen la misma cantidad.
+// Contables: entero (mín. 1); peso/volumen: hasta 2 decimales.
+export function escalarIngredientes(receta, porc) {
+  if (!receta) return [];
+  const factor = receta.porciones > 0 ? porc / receta.porciones : 1;
+  const escalar = (cantidad, unidad) => {
+    const x = (Number(cantidad) || 0) * factor;
+    if (x <= 0) return 0;
+    return familiaUnidad(unidad) === "cantidad" ? Math.max(1, Math.round(x)) : Math.round(x * 100) / 100;
+  };
+  const detalle = receta.ingredientes_detalle || [];
+  if (detalle.length) {
+    return detalle
+      .map((ing, i) => {
+        const unit = ing.unidad_medida || "und";
+        return { id: "D" + i, label: ing.nombre, qty: escalar(ing.cantidad, unit), unit };
+      })
+      .filter((d) => d.qty > 0);
+  }
+  // Respaldo: texto plano "400 gr de Lomo fino" -> { cantidad, unidad }.
+  return (receta.ingredientes || [])
+    .map((texto, i) => {
+      const m = String(texto).match(/([0-9]+(?:[.,][0-9]+)?)\s*([a-zA-Z]+)?/);
+      const unit = (m && m[2] && m[2].toLowerCase()) || "und";
+      return {
+        id: "D" + i,
+        label: String(texto).replace(/^[0-9.,]+\s*[a-zA-Z]*\s*(de\s+)?/i, "").trim(),
+        qty: escalar(m ? Number(m[1].replace(",", ".")) : 1, unit),
+        unit,
+      };
+    })
+    .filter((d) => d.label && d.qty > 0);
+}
+
+// Descuento puro sobre un arreglo de insumos (no muta el original). Cantidades
+// negativas suman (ajuste fino de PRE-02). Devuelve además un reporte:
+//  - noEncontrados: ingredientes que no están en la despensa (o en otra familia
+//    de unidad: no se mezcla "gr" con "taza");
+//  - insuficientes: ingredientes cuyo stock no alcanzó (la despensa queda en 0,
+//    nunca negativa; CU-05).
+// Convierte entre unidades de la misma familia (kg↔g, l↔ml) y consume primero
+// el lote que vence antes (FEFO), para que las alertas de vencimiento (PRE-03)
+// reflejen lo que realmente queda.
+export function descontarConReporte(items, descuentos) {
   const arr = items.map((p) => ({ ...p }));
+  const noEncontrados = [];
+  const insuficientes = [];
+  const porVencimiento = (a, b) =>
+    String(a.fechaVencimiento || "9999-12-31").localeCompare(String(b.fechaVencimiento || "9999-12-31"));
+
   descuentos.forEach((it) => {
-    const label = norm(it.label);
-    const lw = label.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-    const i = arr.findIndex((p) => {
-      const n = norm(p.nombre);
-      const pw = n.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
-      return lw.some((w) => n.indexOf(w) !== -1) || pw.some((w) => label.indexOf(w) !== -1);
-    });
-    if (i < 0) return;
-    const p = arr[i];
-    if (bucketUnidad(p.unidad) !== bucketUnidad(it.unit)) return;
-    arr[i] = { ...p, cantidad: Math.max(0, Number(p.cantidad) - Number(it.qty)) };
+    const qty = Number(it.qty) || 0;
+    if (qty === 0) return;
+    const familia = familiaUnidad(it.unit);
+    const mismaFamilia = arr.filter((p) => familiaUnidad(p.unidad) === familia);
+    const exactos = mismaFamilia.filter((p) => norm(p.nombre) === norm(it.label));
+    // Coincidencia aproximada: solo el producto que vence antes (como antes, un único item).
+    const candidatos = (exactos.length ? exactos : mismaFamilia.filter((p) => coincideNombre(it.label, p.nombre)))
+      .sort(porVencimiento)
+      .slice(0, exactos.length ? undefined : 1);
+
+    if (!candidatos.length) {
+      noEncontrados.push(it.label);
+      return;
+    }
+    if (qty < 0) {
+      // Ajuste a la baja: devuelve la cantidad al lote que vence más tarde.
+      const c = candidatos[candidatos.length - 1];
+      c.cantidad = redondear((aBaseCantidad(c.cantidad, c.unidad) + aBaseCantidad(-qty, it.unit)) / factorUnidad(c.unidad));
+      return;
+    }
+    let restante = aBaseCantidad(qty, it.unit);
+    for (const c of candidatos) {
+      if (restante <= 1e-9) break;
+      const disponible = aBaseCantidad(c.cantidad, c.unidad);
+      const toma = Math.min(disponible, restante);
+      c.cantidad = redondear((disponible - toma) / factorUnidad(c.unidad));
+      restante -= toma;
+    }
+    if (restante > 1e-9) {
+      insuficientes.push({ label: it.label, faltante: redondear(restante / factorUnidad(it.unit)), unit: it.unit });
+    }
   });
-  return arr;
+  return { items: arr, noEncontrados, insuficientes };
+}
+
+export function descontarEn(items, descuentos) {
+  return descontarConReporte(items, descuentos).items;
 }

@@ -5,12 +5,12 @@ export const colors = {
   primaryDark: "#6E3A20",
   primaryLight: "#F4E7DE",
   text: "#1F1F1F",
-  sub: "#757575",
-  muted: "#9E9E9E",
+  sub: "#5C5C5C",
+  muted: "#666666",
   green: "#2E7D32",
   greenBg: "#E7F6EC",
   green2: "#43A047",
-  amber: "#B26A00",
+  amber: "#8F5400",
   amberBg: "#FFF8E1",
   red: "#C62828",
   redBg: "#FDECEA",
@@ -28,7 +28,7 @@ export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 export const radius = { sm: 8, md: 12, lg: 16, pill: 999 };
 
 export const typography = {
-  sizes: { caption: 10, small: 12, body: 13, label: 15, subtitle: 16, title: 22, hero: 34 },
+  sizes: { caption: 12, small: 12, body: 13, label: 15, subtitle: 16, title: 22, hero: 34 },
   lineHeights: { tight: 1.15, normal: 1.35 },
   weights: { regular: "400", medium: "500", semibold: "600", bold: "700" },
 };

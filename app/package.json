@@ -25,7 +25,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:domain": "npx --yes -p typescript tsc -p tests/tsconfig.domain.json && node --test tests/domain.test.cjs"
   },
   "private": true,
   "devDependencies": {

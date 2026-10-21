@@ -4,7 +4,7 @@
     "slug": "haymax-app",
     "version": "1.0.0",
     "scheme": "haymax",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {

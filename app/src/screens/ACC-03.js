@@ -55,44 +55,57 @@ export default function ACC_03() {
 
         <View style={styles.form}>
           <K.InputField
-            placeholder="Nombre completo"
+            label="Nombre completo"
+            placeholder="Nombre y apellido"
             value={nombre}
             onChangeText={setNombre}
             autoCapitalize="words"
+            autoComplete="name"
+            textContentType="name"
           />
           <K.InputField
-            placeholder="Correo electrónico"
+            label="Correo electrónico"
+            placeholder="tucorreo@ejemplo.com"
             value={correo}
             onChangeText={setCorreo}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
           />
           <K.InputField
-            placeholder="Contraseña (mínimo 8 caracteres)"
+            label="Contraseña (mínimo 8 caracteres)"
+            placeholder="Crea una contraseña"
             value={clave}
             onChangeText={setClave}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
           />
           <K.InputField
-            placeholder="Repite la contraseña"
+            label="Repite la contraseña"
+            placeholder="Vuelve a escribirla"
             value={confirmar}
             onChangeText={setConfirmar}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="new-password"
+            textContentType="newPassword"
           />
           <K.InputField
-            placeholder="Distrito (opcional)"
+            label="Distrito (opcional)"
+            placeholder="Ej. Surquillo"
             value={distrito}
             onChangeText={setDistrito}
             autoCapitalize="words"
           />
         </View>
 
-        {error ? <K.Note text={error} /> : null}
+        {error ? <K.Note text={error} alerta /> : null}
 
         <Button
           label={cargando ? "Creando cuenta…" : "Crear cuenta"}

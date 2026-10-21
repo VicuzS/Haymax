@@ -21,8 +21,8 @@ export default function AJU_02() {
   return (
     <Screen id="AJU-02" name="Exclusiones alimentarias">
       <K.SectionTitle title="Ingredientes que no quiero" />
-      <K.Chips items={SUGERIDAS} active={SUGERIDAS.find((s) => !activas.includes(s))} onPressItem={agregar} />
-      <K.Chips items={activas.map((a) => ({ label: a }))} ok onPressItem={quitar} />
+      <K.Chips items={SUGERIDAS} active={SUGERIDAS.find((s) => !activas.includes(s))} onPressItem={agregar} hintItem="Doble toque para agregar a tus exclusiones" />
+      <K.Chips items={activas.map((a) => ({ label: a }))} ok onPressItem={quitar} hintItem="Doble toque para quitar de tus exclusiones" />
 
       <K.SectionTitle title="Tipos de plato" />
       <View style={styles.rows}>
