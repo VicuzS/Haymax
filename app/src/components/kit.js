@@ -647,18 +647,18 @@ export function EditStepper({ label, qty, onChange }) {
 }
 
 export function CameraView({ modo = "Boleta", hint, onPress }) {
+  // El modo (Boleta / Lista) se elige en la pantalla que usa el componente
+  // (ver DES-04), así evitamos duplicar los chips dentro del visor.
   const body = (
-    <View style={styles.camera} accessible accessibilityLabel={etiqueta(`Vista de cámara, modo ${modo}`, hint)}>
-      <View style={styles.cameraPills}>
-        <View style={[styles.pill, modo === "Boleta" ? styles.camPillOn : styles.camPillOff]}>
-          <Text style={modo === "Boleta" ? styles.camPillOnText : styles.camPillOffText}>Boleta</Text>
-        </View>
-        <View style={[styles.pill, modo === "Lista de compras" ? styles.camPillOn : styles.camPillOff]}>
-          <Text style={modo === "Lista de compras" ? styles.camPillOnText : styles.camPillOffText}>Lista</Text>
-        </View>
-      </View>
+    <View
+      style={styles.camera}
+      accessible
+      accessibilityLabel={etiqueta(`Vista de cámara, modo ${modo}`, hint)}
+    >
       <View style={styles.cameraGuide} />
-      <Text style={styles.cameraHint}>{hint || "Encuadra la boleta completa con buena luz"}</Text>
+      <Text style={styles.cameraHint}>
+        {hint || "Encuadra la boleta completa con buena luz"}
+      </Text>
       <View style={styles.shutterOuter}>
         <View style={styles.shutterInner} />
       </View>
@@ -867,11 +867,6 @@ const styles = StyleSheet.create({
   stepperBtn: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
 
   camera: { height: 340, borderRadius: radius.lg, backgroundColor: colors.dark, padding: 16, gap: spacing.md },
-  cameraPills: { flexDirection: "row", gap: spacing.sm },
-  camPillOn: { backgroundColor: colors.white },
-  camPillOnText: { fontSize: typography.sizes.caption, color: colors.primary, fontWeight: typography.weights.semibold },
-  camPillOff: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.white },
-  camPillOffText: { fontSize: typography.sizes.caption, color: colors.white },
   cameraGuide: { flex: 1, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", borderColor: colors.white },
   cameraHint: { fontSize: typography.sizes.small, color: "#DDDDDD", textAlign: "center" },
   shutterOuter: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.white, alignItems: "center", justifyContent: "center", alignSelf: "center" },
