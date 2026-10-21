@@ -2,10 +2,12 @@ import { useState } from "react";
 import { View, StyleSheet } from "react-native";
 import Screen from "../components/Screen";
 import Button from "../components/Button";
+import DistrictSelect from "../components/DistrictSelect";
 import * as K from "../components/kit";
 import { go } from "../lib/nav";
 import { spacing } from "../tokens";
 import { registrarUsuario } from "../lib/api";
+import { anunciar } from "../lib/a11y";
 
 export default function ACC_03() {
   const [nombre, setNombre] = useState("");
@@ -34,18 +36,28 @@ export default function ACC_03() {
     setCargando(true);
     setError("");
     try {
-      await registrarUsuario({ nombre, email, password: clave, distrito });
+      await registrarUsuario({
+        nombre: nombre.trim(),
+        email,
+        password: clave,
+        distrito: distrito.trim() || undefined,
+      });
+      anunciar("Cuenta creada. Bienvenida a Haymax");
       go("INI-01");
     } catch (e) {
       const msg = String((e && e.message) || "");
       const sinRed = /fetch|failed|network|conectar/i.test(msg);
-      setError(sinRed ? "No se pudo conectar con el servidor. Revisa que la API esté activa." : msg || "No se pudo crear la cuenta.");
+      setError(
+        sinRed
+          ? "No se pudo conectar con el servidor. Revisa que la API esté activa."
+          : msg || "No se pudo crear la cuenta."
+      );
     } finally {
       setCargando(false);
     }
   };
 
-    return (
+  return (
     <Screen id="ACC-03" name="Crear cuenta">
       <View style={styles.wrap}>
         <View style={styles.intro}>
@@ -96,12 +108,14 @@ export default function ACC_03() {
             autoComplete="new-password"
             textContentType="newPassword"
           />
-          <K.InputField
+          <DistrictSelect
             label="Distrito (opcional)"
-            placeholder="Ej. Surquillo"
+            placeholder="Selecciona tu distrito"
             value={distrito}
-            onChangeText={setDistrito}
-            autoCapitalize="words"
+            onChange={setDistrito}
+          />
+          <K.TextLine
+            text="Usaremos tu distrito para recomendarte recetas y precios típicos de tu zona. Puedes cambiarlo después en tu perfil."
           />
         </View>
 
@@ -110,6 +124,7 @@ export default function ACC_03() {
         <Button
           label={cargando ? "Creando cuenta…" : "Crear cuenta"}
           full
+          loading={cargando}
           onPress={crearCuenta}
           disabled={cargando}
         />
@@ -128,11 +143,11 @@ export default function ACC_03() {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: 32,             // menos que login: este form es más alto
+    paddingTop: 32,
     paddingHorizontal: spacing.sm,
   },
   intro: {
-    marginBottom: spacing.lg,   // 24px en lugar de 32 (form más largo)
+    marginBottom: spacing.lg,
   },
   form: {
     gap: 12,
