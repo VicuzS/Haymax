@@ -17,7 +17,7 @@ export default function DES_08() {
         ))}
       </View>
       <K.TextLine text="Ya puedes usarlos en el motor de recetas." />
-      <Button label="Continuar y planificar" full onPress={() => go("PLA-01")} />
+      <Button label="Continuar y planificar" full onPress={() => go("PLA-05")} />
       <Button label="Ver mi despensa" variant="outline" full onPress={() => go("DES-01")} />
     </Screen>
   );

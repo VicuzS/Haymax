@@ -17,7 +17,7 @@ export default function INI_02() {
         <K.Row label="2. Arma tu plan semanal" icon="2" />
       </View>
       <Button label="Agregar insumos" full onPress={() => go("DES-03")} />
-      <Button label="Armar mi plan" variant="outline" full onPress={() => go("PLA-01")} />
+      <Button label="Armar mi plan" variant="outline" full onPress={() => go("PLA-05")} />
       <K.TextLine text="Puedes escanear una boleta, una lista o escribir a mano." />
     </Screen>
   );
