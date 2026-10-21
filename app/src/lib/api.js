@@ -112,9 +112,11 @@ function aPlan(p, recetas) {
   return {
     id: p.id,
     dia: p.dia,
+    fecha: p.fecha,
     comida: p.comida,
     recetaId: p.receta_id || p.recetaId,
     porciones: p.porciones,
+    completado: !!(p.completado || p.cocinado),
     receta: aReceta(recetas.find((r) => r.id === (p.receta_id || p.recetaId))) || recetas[0] || null,
   };
 }
