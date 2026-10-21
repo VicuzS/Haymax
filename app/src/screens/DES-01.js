@@ -63,7 +63,8 @@ export default function DES_01() {
   const alertas = stats.porVencer + stats.vencidos;
 
   return (
-    <Screen id="DES-01" name={NOMBRE}>      <K.InputField
+    <Screen id="DES-01" name={NOMBRE}>      
+    <K.InputField
         label="Buscar insumo"
         placeholder="Ej. pollo, tomate…"
         value={q}
