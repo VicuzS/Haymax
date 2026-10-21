@@ -19,6 +19,7 @@ import {
 } from "../data/mock";
 import * as D from "./domain";
 import { API_URL } from "../config";
+import { hoyIso } from "./fechas";
 import { router } from "expo-router";
 import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } from "./sesion";
 
@@ -180,7 +181,11 @@ export async function getInicio() {
     rf("/compras"),
   ]);
   const rs = recetas.map(aReceta);
-  const planP = planes.find((p) => p.dia === hoy.dia) || null;
+  // El plato "de hoy" se identifica por la FECHA (no solo por el nombre del día:
+  // "lunes" de otra semana no es hoy) y se prefiere el que aún no se preparó.
+  const fechaHoy = hoyIso();
+  const delDia = planes.filter((p) => String(p.fecha || "").slice(0, 10) === fechaHoy);
+  const planP = delDia.find((p) => !p.completado) || delDia[0] || null;
   const plan = planP ? aPlan(planP, rs) : null;
   const shopList = compras.map((c) => ({ ...c, listo: !!c.listo }));
   return {
@@ -268,10 +273,27 @@ export async function getPreparar(id) {
   const rs = recetas.map(aReceta);
   const r = id ? rs.find((x) => x.id === id) : null;
   const receta = r || rs[0];
-  const p = planes.find((x) => x.receta_id === receta.id) || null;
+  // Plan que se marca como preparado: el de hoy; si no hay, el último pendiente ya vencido.
+  const hoy = hoyIso();
+  const dia = (x) => String(x.fecha || "").slice(0, 10);
+  const deLaReceta = planes.filter((x) => x.receta_id === receta.id);
+  const p =
+    deLaReceta.find((x) => dia(x) === hoy) ||
+    deLaReceta.filter((x) => !x.completado && dia(x) <= hoy).sort((a, b) => dia(b).localeCompare(dia(a)))[0] ||
+    null;
   return {
     receta,
-    plan: p ? { id: p.id, dia: p.dia, comida: p.comida, recetaId: p.receta_id, porciones: p.porciones } : null,
+    plan: p
+      ? {
+          id: p.id,
+          dia: p.dia,
+          fecha: p.fecha,
+          comida: p.comida,
+          recetaId: p.receta_id,
+          porciones: p.porciones,
+          completado: !!(p.completado || p.cocinado),
+        }
+      : null,
   };
 }
 
@@ -322,7 +344,29 @@ export async function getAlertas() {
     return { atencion: pantryMock.filter((p) => p.estado !== "ok") };
   }
   const items = (await rf("/despensa")).map(aInsumo);
-  return { atencion: items.filter((p) => p.estado !== "ok") };
+  const atencion = items
+    .filter((p) => p.estado !== "ok")
+    .sort((a, b) => String(a.fechaVencimiento || "9999").localeCompare(String(b.fechaVencimiento || "9999")));
+  const recetas = await getRecetasConInsumos(atencion).catch(() => []);
+  return { atencion, recetas };
+}
+
+// CU-04: recetas que aprovechan los insumos por vencer (las que cubren más insumos primero).
+export async function getRecetasConInsumos(insumos = []) {
+  if (!insumos.length) return [];
+  await enCuenta();
+  const recetas = (await rf("/recetas")).map(aReceta);
+  const usa = (r, p) => {
+    const detalle = r.ingredientes_detalle || [];
+    return detalle.length
+      ? detalle.some((ing) => D.coincideNombre(ing.nombre, p.nombre))
+      : (r.ingredientes || []).some((t) => D.ingredienteCubierto(t, [p]));
+  };
+  return recetas
+    .map((r) => ({ receta: r, usados: insumos.filter((p) => usa(r, p)).map((p) => p.nombre) }))
+    .filter((x) => x.usados.length > 0)
+    .sort((a, b) => b.usados.length - a.usados.length)
+    .slice(0, 3);
 }
 
 export async function getBalance() {
@@ -511,25 +555,61 @@ export async function enviarFaltantesALista(ings) {
   }
 }
 
+// Último descuento aplicado (para que PRE-02 informe qué no se pudo descontar).
+let ultimoDescuento = null;
+
+export function getUltimoDescuento() {
+  return ultimoDescuento
+    ? { noEncontrados: [...ultimoDescuento.noEncontrados], insuficientes: [...ultimoDescuento.insuficientes] }
+    : null;
+}
+
+export function limpiarUltimoDescuento() {
+  ultimoDescuento = null;
+}
+
+// Aplica los descuentos contra /despensa. Como la API actualiza un insumo por
+// llamada, si una falla a mitad se revierten las ya aplicadas (reversión
+// compensatoria) para no dejar la despensa a medio descontar.
 async function descontarReales(descuentos) {
   const items = (await rf("/despensa")).map(aInsumo);
-  const nuevos = D.descontarEn(items, descuentos);
-  for (let i = 0; i < items.length; i++) {
-    if (Number(nuevos[i].cantidad) !== Number(items[i].cantidad)) {
-      await rf("/despensa/" + items[i].id, {
-        method: "PUT",
-        body: { cantidad: nuevos[i].cantidad },
-      });
+  const { items: nuevos, noEncontrados, insuficientes } = D.descontarConReporte(items, descuentos);
+  const aplicados = [];
+  try {
+    for (let i = 0; i < items.length; i++) {
+      if (Number(nuevos[i].cantidad) !== Number(items[i].cantidad)) {
+        await rf("/despensa/" + items[i].id, {
+          method: "PUT",
+          body: { cantidad: nuevos[i].cantidad },
+        });
+        aplicados.push({ id: items[i].id, antes: items[i].cantidad });
+      }
     }
+  } catch (_e) {
+    let revertido = true;
+    for (const a of aplicados.reverse()) {
+      try {
+        await rf("/despensa/" + a.id, { method: "PUT", body: { cantidad: a.antes } });
+      } catch (_e2) {
+        revertido = false;
+      }
+    }
+    throw new Error(
+      revertido
+        ? "No se pudo actualizar la despensa; no se descontó ningún insumo. Inténtalo de nuevo."
+        : "La despensa quedó parcialmente actualizada. Revísala en Despensa antes de reintentar."
+    );
   }
+  ultimoDescuento = { noEncontrados, insuficientes };
+  return { cambios: aplicados.length, noEncontrados, insuficientes };
 }
 
 export async function descontarAlCocinar(descuentos) {
   if (await enCuenta()) {
-    await descontarReales(descuentos);
-    return;
+    return descontarReales(descuentos);
   }
   descontarDespensa(descuentos);
+  return { cambios: 0, noEncontrados: [], insuficientes: [] };
 }
 
 export async function ajustarAlCocinar(filas) {
@@ -537,10 +617,23 @@ export async function ajustarAlCocinar(filas) {
     const deltas = filas
       .map((f) => ({ label: f.label, qty: Number(f.qty) - Number(f.base), unit: f.unit }))
       .filter((d) => d.qty !== 0);
-    if (deltas.length) await descontarReales(deltas);
-    return;
+    if (deltas.length) return descontarReales(deltas);
+    return { cambios: 0, noEncontrados: [], insuficientes: [] };
   }
   ajustarDespensa(filas);
+  return { cambios: 0, noEncontrados: [], insuficientes: [] };
+}
+
+// "Deshacer" de CU-05: devuelve a la despensa lo descontado y reabre el plato del plan.
+// La cantidad vuelve al lote que vence más tarde (no se guarda de qué lote salió).
+export async function deshacerPreparacion({ filas = [], planId } = {}) {
+  await enCuenta();
+  const devolver = filas
+    .map((f) => ({ label: f.label, qty: -Number(f.base), unit: f.unit }))
+    .filter((d) => d.qty !== 0);
+  if (devolver.length) await descontarReales(devolver);
+  if (planId != null) await actualizarPlan(planId, { completado: false });
+  ultimoDescuento = null;
 }
 
 export async function getPlanesEntre(desde, hasta) {

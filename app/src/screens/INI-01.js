@@ -28,17 +28,23 @@ export default function INI_01() {
   const { hoy, primerNombre, inicial, plan, recetaHoy, sugerida, stats, shop, balance, atencion } = data;
   const comida = (plan && plan.comida) || "almuerzo";
   const porciones = (plan && plan.porciones) || recetaHoy.porciones;
+  const hayPlan = !!plan;
+  const preparado = !!(plan && plan.completado);
 
   return (
     <Screen id="INI-01" name={NOMBRE}>
-      <K.Header iniciales={inicial} title={`Hola, ${primerNombre}`} sub={hoy.fecha} />
+      <K.Header iniciales={inicial} title={`Hola, ${primerNombre}`} sub={hoy.fecha} alertas={atencion} />
 
       <K.Card
-        thumb={recetaHoy.imagen}
-        title="Plato planeado hoy"
-        sub={`${comida} · ${recetaHoy.nombre} · ${porciones} porciones`}
-        right="Ver"
-        onPress={() => go("REC-02", { receta: recetaHoy.id })}
+        thumb={hayPlan ? recetaHoy.imagen : undefined}
+        title={hayPlan ? "Plato planeado hoy" : "Sin plato planeado hoy"}
+        sub={
+          hayPlan
+            ? `${comida} · ${recetaHoy.nombre} · ${porciones} porciones${preparado ? " · preparado" : ""}`
+            : "Planifica uno para poder descontar sus insumos al cocinar"
+        }
+        right={hayPlan ? "Ver" : "Planificar"}
+        onPress={() => (hayPlan ? go("REC-02", { receta: recetaHoy.id }) : go("PLA-05"))}
       />
       <K.Card
         title="Lista de compras"
@@ -48,12 +54,21 @@ export default function INI_01() {
       />
 
       <K.SectionTitle title="Acciones rápidas" />
-      <K.QuickAction
-        icon="checkmark-done-outline"
-        label="Ya lo preparé"
-        sub="Descontar insumos de mi despensa"
-        onPress={() => go("PRE-01")}
-      />
+      {preparado ? (
+        <K.QuickAction
+          icon="checkmark-done-outline"
+          label="Plato de hoy preparado"
+          sub="Revisa o corrige lo que se descontó"
+          onPress={() => go("PRE-02", { receta: recetaHoy.id, porciones: String(porciones) })}
+        />
+      ) : (
+        <K.QuickAction
+          icon="checkmark-done-outline"
+          label="Ya lo preparé"
+          sub={hayPlan ? "Descontar insumos de mi despensa" : "Elige el plato que cocinaste"}
+          onPress={() => (hayPlan ? go("PRE-01", { receta: recetaHoy.id }) : go("REC-01"))}
+        />
+      )}
       <K.QuickAction
         icon="restaurant-outline"
         label="Planificar un plato nuevo"
@@ -75,10 +90,12 @@ export default function INI_01() {
           { label: `${stats.vencidos} vencidos`, tone: "red" },
         ]}
       />
-      <K.Note
-        text={`${atencion} insumos requieren atención: revísalos hoy.`}
-        onPress={() => go("PRE-03")}
-      />
+      {atencion > 0 ? (
+        <K.Note
+          text={`${atencion} ${atencion === 1 ? "insumo requiere" : "insumos requieren"} atención: revísalos hoy.`}
+          onPress={() => go("PRE-03")}
+        />
+      ) : null}
 
       <K.SectionTitle title="¿Qué puedo cocinar?" action="Abrir motor" onPress={() => go("REC-01")} />
       <K.Card

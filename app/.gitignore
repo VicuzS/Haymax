@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Salida temporal de las pruebas de dominio
+.tmp-test/
+
 # Expo
 .expo/
 dist/

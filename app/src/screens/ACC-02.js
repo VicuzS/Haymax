@@ -47,24 +47,33 @@ export default function ACC_02() {
 
         <View style={styles.form}>
           <K.InputField
-            placeholder="Correo electrónico"
+            label="Correo electrónico"
+            placeholder="tucorreo@ejemplo.com"
             value={correo}
             onChangeText={setCorreo}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
           />
           <K.InputField
-            placeholder="Contraseña"
+            label="Contraseña"
+            placeholder="Tu contraseña"
             value={clave}
             onChangeText={setClave}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="current-password"
+            textContentType="password"
+            returnKeyType="go"
+            onSubmitEditing={entrarCuenta}
           />
         </View>
 
-        {error ? <K.Note text={error} /> : null}
+        {error ? <K.Note text={error} alerta /> : null}
 
         <Button
           label={cargando ? "Iniciando sesión…" : "Iniciar sesión"}

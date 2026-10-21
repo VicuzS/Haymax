@@ -62,7 +62,12 @@ export function resolveIconName(char) {
   return null;
 }
 
-export default function Icon({ name, size = 16, color = colors.text, style }) {
+// 1.1.1 Contenido no textual: el icono es decorativo (oculto a lectores de pantalla)
+// salvo que se pase `accessibilityLabel`, en cuyo caso se expone como imagen con texto alternativo.
+export default function Icon({ name, size = 16, color = colors.text, style, accessibilityLabel }) {
   const ion = MAP[name] || name;
-  return <Ionicons name={ion} size={size} color={color} style={style} />;
+  const a11y = accessibilityLabel
+    ? { accessible: true, accessibilityRole: "image", accessibilityLabel }
+    : { accessible: false, accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
+  return <Ionicons name={ion} size={size} color={color} style={style} {...a11y} />;
 }

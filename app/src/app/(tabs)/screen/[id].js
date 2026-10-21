@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
-import { renderScreen } from "../../../screens";
+import { renderScreen, SCREEN_META } from "../../../screens";
 import { colors, spacing, typography } from "../../../tokens";
 
 function NotFound({ id }) {
@@ -24,7 +24,7 @@ export default function ScreenRoute() {
 
   return (
     <>
-      <Stack.Screen options={{ title: id || "Haymax" }} />
+      <Stack.Screen options={{ title: (SCREEN_META[id] && SCREEN_META[id].name) || id || "Haymax" }} />
       {screen || <NotFound id={id} />}
     </>
   );

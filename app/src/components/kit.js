@@ -5,33 +5,67 @@ import { Image } from "expo-image";
 import { colors, radius, spacing, typography, shadows } from "../tokens";
 import Icon, { resolveIconName, isEmoji } from "./Icon";
 import { resolverImagen } from "../lib/imagenes";
+import { go } from "../lib/nav";
+import { focoVisible, etiqueta } from "../lib/a11y";
 
 // Kit de UI: un componente por primitiva del wireframe (prototipo/code.js).
 // Las pantallas reales (Fases 1-4) se componen SOLO con estos elementos.
 
+// Contenedor pulsable accesible: rol, etiqueta combinada, estado y foco visible
+// (4.1.2 Nombre, función, valor · 2.4.7 Foco visible · 2.5.3 Etiqueta en el nombre).
+function Tappable({ onPress, label, role = "button", state, hint, children }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole={role}
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={state}
+      style={(s) => [s.pressed && styles.pressed, focoVisible(s)]}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
 export function Greet({ title, sub }) {
   return (
     <View style={styles.greetBox}>
-      <Text style={styles.greetTitle}>{title}</Text>
+      <Text style={styles.greetTitle} accessibilityRole="header">{title}</Text>
       {sub ? <Text style={styles.greetSub}>{sub}</Text> : null}
     </View>
   );
 }
 
 // Cabecera cálida de bienvenida: avatar + iconos + saludo (a sangre completa).
-export function Header({ iniciales = "R", title, sub }) {
+export function Header({ iniciales = "R", title, sub, alertas }) {
   return (
     <View style={styles.header}>
       <View style={styles.headerTop}>
-        <View style={styles.avatar}>
+        <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Text style={styles.avatarText}>{iniciales}</Text>
         </View>
         <View style={styles.headerIcons}>
-          <Icon name="notifications-outline" size={20} color={colors.primaryDark} />
-          <Icon name="help-circle-outline" size={20} color={colors.primaryDark} />
+          <Pressable
+            onPress={() => go("PRE-03")}
+            accessibilityRole="button"
+            accessibilityLabel={
+              alertas > 0
+                ? `Alertas de vencimiento: ${alertas} ${alertas === 1 ? "insumo requiere" : "insumos requieren"} atención`
+                : "Alertas de vencimiento"
+            }
+            style={(s) => [styles.headerBtn, s.pressed && styles.pressed, focoVisible(s)]}
+          >
+            <Icon name="notifications-outline" size={22} color={colors.primaryDark} />
+            {alertas > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{alertas}</Text>
+              </View>
+            ) : null}
+          </Pressable>
         </View>
       </View>
-      <Text style={styles.headerTitle}>{title}</Text>
+      <Text style={styles.headerTitle} accessibilityRole="header">{title}</Text>
       {sub ? <Text style={styles.headerSub}>{sub}</Text> : null}
     </View>
   );
@@ -40,9 +74,16 @@ export function Header({ iniciales = "R", title, sub }) {
 export function SectionTitle({ title, action, onPress }) {
   return (
     <View style={styles.secRow}>
-      <Text style={styles.secTitle}>{title}</Text>
+      <Text style={styles.secTitle} accessibilityRole="header">{title}</Text>
       {action ? (
-        <Pressable onPress={onPress} disabled={!onPress} hitSlop={8}>
+        <Pressable
+          onPress={onPress}
+          disabled={!onPress}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={etiqueta(action, title)}
+          style={(s) => [styles.secActionBtn, focoVisible(s)]}
+        >
           <Text style={styles.secAction}>{action}</Text>
         </Pressable>
       ) : null}
@@ -61,7 +102,7 @@ export function TextLine({ text, color, bold }) {
 export function Card({ thumb, title, sub, subColor, right, onPress }) {
   const body = (
     <View style={styles.card}>
-      {thumb ? <Image source={resolverImagen(thumb)} style={styles.cardThumb} contentFit="cover" /> : null}
+      {thumb ? <Image source={resolverImagen(thumb)} style={styles.cardThumb} contentFit="cover" accessible={false} /> : null}
       <View style={styles.cardMain}>
         <Text style={styles.cardTitle}>{title}</Text>
         {sub ? <Text style={[styles.cardSub, subColor ? { color: subColor } : null]}>{sub}</Text> : null}
@@ -70,9 +111,9 @@ export function Card({ thumb, title, sub, subColor, right, onPress }) {
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiqueta(title, sub, right)}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -86,8 +127,14 @@ export function Row({ label, value, valueColor, icon, onPress }) {
   let iconColor = colors.muted;
   if (iconName === "checkmark") iconColor = colors.green;
   else if (iconName === "alert-circle-outline") iconColor = colors.amber;
+  const valorTexto = symValue ? (value === "!" ? "requiere atención" : value === "★" ? "favorito" : "correcto") : value;
+  const etiquetaFila = etiqueta(label, valorTexto);
   const body = (
-    <View style={styles.row}>
+    <View
+      style={styles.row}
+      accessible={!onPress}
+      accessibilityLabel={!onPress ? etiquetaFila : undefined}
+    >
       <View style={styles.rowIcon}>
         {iconName ? (
           <Icon name={iconName} size={15} color={iconColor} />
@@ -97,7 +144,7 @@ export function Row({ label, value, valueColor, icon, onPress }) {
           <Icon name="ellipse" size={8} color={colors.muted} />
         )}
       </View>
-      <Text style={styles.rowLabel} numberOfLines={1}>
+      <Text style={styles.rowLabel}>
         {label}
       </Text>
       {value ? (
@@ -108,7 +155,7 @@ export function Row({ label, value, valueColor, icon, onPress }) {
             color={value === "!" ? colors.amber : colors.green}
           />
         ) : (
-          <Text style={[styles.rowValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
+          <Text style={[styles.rowValue, valueColor ? { color: valueColor } : null]}>
             {value}
           </Text>
         )
@@ -116,15 +163,15 @@ export function Row({ label, value, valueColor, icon, onPress }) {
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiquetaFila}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
 }
 
-export function Chips({ items = [], active, ok, onPressItem }) {
+export function Chips({ items = [], active, ok, onPressItem, hintItem }) {
   return (
     <View style={styles.chipsRow}>
       {items.map((it, i) => {
@@ -149,7 +196,16 @@ export function Chips({ items = [], active, ok, onPressItem }) {
           </View>
         );
         return onPressItem ? (
-          <Pressable key={i} onPress={() => onPressItem(label)} style={({ pressed }) => pressed && styles.pressed}>
+          <Pressable
+            key={i}
+            onPress={() => onPressItem(label)}
+            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            accessibilityHint={hintItem}
+            accessibilityState={{ selected: !!isActive }}
+            style={(s) => [s.pressed && styles.pressed, focoVisible(s)]}
+          >
             {chip}
           </Pressable>
         ) : (
@@ -176,25 +232,29 @@ export function QuickAction({ icon, label, sub, onPress, variant }) {
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiqueta(label, sub)}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
 }
 
-export function Note({ text, onPress }) {
+export function Note({ text, onPress, alerta }) {
   const body = (
-    <View style={styles.note}>
+    <View
+      style={styles.note}
+      accessibilityRole={alerta && !onPress ? "alert" : undefined}
+      accessibilityLiveRegion={alerta ? "assertive" : undefined}
+    >
       <Icon name="warning-outline" size={14} color={colors.amber} style={styles.noteIcon} />
       <Text style={styles.noteText}>{text}</Text>
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={text}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -208,7 +268,13 @@ export function Banner({ title, sub, tone }) {
         ? { bg: colors.primaryLight, fg: colors.primary }
         : { bg: colors.redBg, fg: colors.red };
   return (
-    <View style={[styles.banner, { backgroundColor: palette.bg }]}>
+    <View
+      style={[styles.banner, { backgroundColor: palette.bg }]}
+      accessible
+      accessibilityRole={tone === "GREEN" || tone === "PRIMARY" ? undefined : "alert"}
+      accessibilityLiveRegion={tone === "GREEN" || tone === "PRIMARY" ? "polite" : "assertive"}
+      accessibilityLabel={etiqueta(title, sub)}
+    >
       <Text style={[styles.bannerTitle, { color: palette.fg }]}>{title}</Text>
       {sub ? <Text style={[styles.bannerSub, { color: palette.fg }]}>{sub}</Text> : null}
     </View>
@@ -217,7 +283,7 @@ export function Banner({ title, sub, tone }) {
 
 export function Stat({ value, label, delta }) {
   return (
-    <View style={styles.stat}>
+    <View style={styles.stat} accessible accessibilityLabel={etiqueta(label, value, delta)}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
       {delta ? <Text style={styles.statDelta}>{delta}</Text> : null}
@@ -237,9 +303,9 @@ export function BalanceCard({ label, pct, text, link, onPress }) {
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiqueta(label, pct, text, link)}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -258,35 +324,61 @@ export function RadioOption({ title, sub, selected, onPress }) {
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiqueta(title, sub)} role="radio" state={{ checked: !!selected }}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
 }
 
-export function InputField({ placeholder, value, onChangeText, keyboardType, secureTextEntry, autoCapitalize, autoCorrect, editable = true }) {
+export function InputField({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  keyboardType,
+  secureTextEntry,
+  autoCapitalize,
+  autoCorrect,
+  autoComplete,
+  textContentType,
+  returnKeyType,
+  onSubmitEditing,
+  accessibilityLabel,
+  editable = true,
+}) {
+  // 3.3.2 Etiquetas o instrucciones: `label` visible sobre el campo (el placeholder
+  // no sustituye a la etiqueta). 1.3.5 Identificar el propósito: autoComplete/textContentType.
+  const nombre = accessibilityLabel || label || placeholder;
   if (onChangeText) {
     return (
-      <View style={styles.input}>
-        <TextInput
-          style={styles.inputLive}
-          placeholder={placeholder}
-          placeholderTextColor={colors.muted}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType}
-          secureTextEntry={secureTextEntry}
-          autoCapitalize={autoCapitalize}
-          autoCorrect={autoCorrect}
-          editable={editable}
-        />
+      <View>
+        {label ? <Text style={styles.inputLabel}>{label}</Text> : null}
+        <View style={styles.input}>
+          <TextInput
+            style={styles.inputLive}
+            placeholder={placeholder}
+            placeholderTextColor={colors.muted}
+            value={value}
+            onChangeText={onChangeText}
+            keyboardType={keyboardType}
+            secureTextEntry={secureTextEntry}
+            autoCapitalize={autoCapitalize}
+            autoCorrect={autoCorrect}
+            autoComplete={autoComplete}
+            textContentType={textContentType}
+            returnKeyType={returnKeyType}
+            onSubmitEditing={onSubmitEditing}
+            editable={editable}
+            accessibilityLabel={nombre}
+          />
+        </View>
       </View>
     );
   }
   return (
-    <View style={styles.input}>
+    <View style={styles.input} accessible accessibilityLabel={nombre}>
       <Text style={styles.inputText}>{placeholder}</Text>
     </View>
   );
@@ -294,7 +386,7 @@ export function InputField({ placeholder, value, onChangeText, keyboardType, sec
 
 export function EmptyState({ title, sub }) {
   return (
-    <View style={styles.empty}>
+    <View style={styles.empty} accessible accessibilityLabel={etiqueta(title, sub)}>
       <Icon name="leaf-outline" size={32} color={colors.muted} />
       <Text style={styles.emptyTitle}>{title}</Text>
       {sub ? <Text style={styles.emptySub}>{sub}</Text> : null}
@@ -304,7 +396,14 @@ export function EmptyState({ title, sub }) {
 
 export function Loading({ text }) {
   return (
-    <View style={styles.loading}>
+    <View
+      style={styles.loading}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={text || "Cargando"}
+      accessibilityState={{ busy: true }}
+      accessibilityLiveRegion="polite"
+    >
       <Icon name="hourglass-outline" size={24} color={colors.primary} />
       <Text style={styles.loadingText}>{text || "Cargando…"}</Text>
     </View>
@@ -313,16 +412,20 @@ export function Loading({ text }) {
 
 export function ErrorState({ text, onRetry }) {
   const body = (
-    <View style={styles.errorBox}>
+    <View
+      style={styles.errorBox}
+      accessibilityRole={onRetry ? undefined : "alert"}
+      accessibilityLiveRegion="assertive"
+    >
       <Icon name="cloud-offline-outline" size={28} color={colors.red} />
       <Text style={styles.errorText}>{text || "Algo salió mal cargando los datos."}</Text>
       {onRetry ? <Text style={styles.errorRetry}>Tocar para reintentar</Text> : null}
     </View>
   );
   return onRetry ? (
-    <Pressable onPress={onRetry} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onRetry} label={etiqueta(text || "Algo salió mal cargando los datos.", "Tocar para reintentar")}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -330,7 +433,13 @@ export function ErrorState({ text, onRetry }) {
 
 export function Progress({ label, right, pct }) {
   return (
-    <View style={styles.prog}>
+    <View
+      style={styles.prog}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={etiqueta(label, right)}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round((pct || 0) * 100) }}
+    >
       <View style={styles.progTop}>
         <Text style={styles.progLabel}>{label}</Text>
         {right ? <Text style={styles.progRight}>{right}</Text> : null}
@@ -344,8 +453,15 @@ export function Progress({ label, right, pct }) {
 
 export function LinkText({ label, align, onPress }) {
   return (
-    <Pressable onPress={onPress} disabled={!onPress} hitSlop={6}>
-      <Text style={[styles.link, { textAlign: align || "LEFT" }]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      hitSlop={6}
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      style={(s) => [styles.linkBtn, focoVisible(s)]}
+    >
+      <Text style={[styles.link, { textAlign: String(align || "left").toLowerCase() }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -361,6 +477,7 @@ function PhotoPlaceholder({ height, imagen }) {
         contentFit="cover"
         transition={200}
         cachePolicy="memory-disk"
+        accessible={false}
         onError={() => setError(true)}
       />
     );
@@ -368,7 +485,7 @@ function PhotoPlaceholder({ height, imagen }) {
   return (
     <View style={[styles.photoPh, { height }]}>
       <Icon name="restaurant-outline" size={46} color={colors.primary} />
-      <Text style={styles.photoPhText}>Foto de la receta</Text>
+      <Text style={styles.photoPhText} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">Foto de la receta</Text>
     </View>
   );
 }
@@ -380,7 +497,7 @@ export function PhotoCard({ imagen, title, sub, price, time, status, statusTone,
       <PhotoPlaceholder height={150} imagen={imagen} />
       <View style={styles.photoBody}>
         <View style={styles.photoTop}>
-          <Text style={styles.photoTitle} numberOfLines={1}>
+          <Text style={styles.photoTitle}>
             {title}
           </Text>
           {price ? <Text style={styles.photoPrice}>{price}</Text> : null}
@@ -411,9 +528,9 @@ export function PhotoCard({ imagen, title, sub, price, time, status, statusTone,
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={etiqueta(title, sub, price, status, cta, time)}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -421,7 +538,11 @@ export function PhotoCard({ imagen, title, sub, price, time, status, statusTone,
 
 export function Hero({ imagen, title, price, time }) {
   return (
-    <View style={styles.hero}>
+    <View
+      style={styles.hero}
+      accessible
+      accessibilityLabel={etiqueta(title, time, price ? `${price} por porción` : null)}
+    >
       <PhotoPlaceholder height={230} imagen={imagen} />
       {time ? (
         <View style={[styles.pill, styles.pillTime]}>
@@ -454,7 +575,10 @@ export function Heart({ activo, onPress, style }) {
     <Pressable
       onPress={onPress}
       hitSlop={10}
-      style={({ pressed }) => [style, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={activo ? "Quitar de favoritas" : "Agregar a favoritas"}
+      accessibilityState={{ selected: !!activo }}
+      style={(s) => [style, s.pressed && styles.pressed, focoVisible(s)]}
     >
       {body}
     </Pressable>
@@ -463,7 +587,7 @@ export function Heart({ activo, onPress, style }) {
 
 export function CheckCircle({ title }) {
   return (
-    <View style={styles.checkBox}>
+    <View style={styles.checkBox} accessible accessibilityLabel={title} accessibilityLiveRegion="polite">
       <View style={styles.checkCircle}>
         <Icon name="checkmark" size={30} color={colors.white} />
       </View>
@@ -473,22 +597,49 @@ export function CheckCircle({ title }) {
 }
 
 export function EditStepper({ label, qty, onChange }) {
+  // 2.5.8 / 2.5.5: botones de 44x44; 4.1.2: cada botón nombra qué ajusta;
+  // 4.1.3: el valor se anuncia al cambiar (región viva educada).
+  const botones = [
+    { delta: -1, simbolo: "−", accion: "Disminuir" },
+    { delta: 1, simbolo: "+", accion: "Aumentar" },
+  ];
   return (
-    <View style={styles.stepper}>
-      <Text style={styles.stepperLabel}>{label}</Text>
+    <View
+      style={styles.stepper}
+      accessible={!onChange}
+      accessibilityLabel={!onChange ? etiqueta(label, qty) : undefined}
+    >
+      <Text
+        style={styles.stepperLabel}
+        accessibilityElementsHidden={!!onChange}
+        importantForAccessibility={onChange ? "no" : "auto"}
+      >
+        {label}
+      </Text>
       <View style={styles.stepperRight}>
-        <Text style={styles.stepperQty}>{qty}</Text>
+        <Text style={styles.stepperQty} accessibilityLabel={`${label}: ${qty}`} accessibilityLiveRegion="polite">
+          {qty}
+        </Text>
         {onChange ? (
           <View style={styles.stepperBtnsRow}>
-            <Pressable onPress={() => onChange(-1)} hitSlop={8} style={({ pressed }) => pressed && styles.pressed}>
-              <Text style={styles.stepperBtns}>−</Text>
-            </Pressable>
-            <Pressable onPress={() => onChange(1)} hitSlop={8} style={({ pressed }) => pressed && styles.pressed}>
-              <Text style={styles.stepperBtns}>+</Text>
-            </Pressable>
+            {botones.map((b) => (
+              <Pressable
+                key={b.delta}
+                onPress={() => onChange(b.delta)}
+                accessibilityRole="button"
+                accessibilityLabel={`${b.accion} ${label}`}
+                style={(st) => [styles.stepperBtn, st.pressed && styles.pressed, focoVisible(st)]}
+              >
+                <Text style={styles.stepperBtns} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                  {b.simbolo}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         ) : (
-          <Text style={styles.stepperBtns}>−   +</Text>
+          <Text style={styles.stepperBtns} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            −   +
+          </Text>
         )}
       </View>
     </View>
@@ -496,27 +647,27 @@ export function EditStepper({ label, qty, onChange }) {
 }
 
 export function CameraView({ modo = "Boleta", hint, onPress }) {
+  // El modo (Boleta / Lista) se elige en la pantalla que usa el componente
+  // (ver DES-04), así evitamos duplicar los chips dentro del visor.
   const body = (
-    <View style={styles.camera}>
-      <View style={styles.cameraPills}>
-        <View style={[styles.pill, modo === "Boleta" ? styles.camPillOn : styles.camPillOff]}>
-          <Text style={modo === "Boleta" ? styles.camPillOnText : styles.camPillOffText}>Boleta</Text>
-        </View>
-        <View style={[styles.pill, modo === "Lista de compras" ? styles.camPillOn : styles.camPillOff]}>
-          <Text style={modo === "Lista de compras" ? styles.camPillOnText : styles.camPillOffText}>Lista</Text>
-        </View>
-      </View>
+    <View
+      style={styles.camera}
+      accessible
+      accessibilityLabel={etiqueta(`Vista de cámara, modo ${modo}`, hint)}
+    >
       <View style={styles.cameraGuide} />
-      <Text style={styles.cameraHint}>{hint || "Encuadra la boleta completa con buena luz"}</Text>
+      <Text style={styles.cameraHint}>
+        {hint || "Encuadra la boleta completa con buena luz"}
+      </Text>
       <View style={styles.shutterOuter}>
         <View style={styles.shutterInner} />
       </View>
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+    <Tappable onPress={onPress} label={"Tomar foto"}>
       {body}
-    </Pressable>
+    </Tappable>
   ) : (
     body
   );
@@ -524,7 +675,7 @@ export function CameraView({ modo = "Boleta", hint, onPress }) {
 
 export function Logo({ tagline }) {
   return (
-    <View style={styles.logoBox}>
+    <View style={styles.logoBox} accessible accessibilityRole="header" accessibilityLabel={etiqueta("Haymax", tagline)}>
       <View style={styles.logoMark}>
         <Icon name="restaurant-outline" size={40} color={colors.primary} />
       </View>
@@ -555,11 +706,15 @@ const styles = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 16, fontWeight: typography.weights.bold, color: colors.white },
   headerIcons: { flexDirection: "row", gap: 14 },
+  headerBtn: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
+  badge: { position: "absolute", top: 2, right: 0, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: colors.red, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  badgeText: { fontSize: 11, fontWeight: typography.weights.bold, color: colors.white },
   headerTitle: { fontSize: 26, fontWeight: typography.weights.bold, color: colors.text, lineHeight: 31 },
   headerSub: { fontSize: typography.sizes.body, color: colors.sub, marginTop: 4 },
 
   secRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm, marginBottom: 6 },
   secTitle: { fontSize: typography.sizes.subtitle, fontWeight: typography.weights.bold, color: colors.text, flex: 1 },
+  secActionBtn: { minHeight: 44, justifyContent: "center" },
   secAction: { fontSize: typography.sizes.small, fontWeight: typography.weights.semibold, color: colors.primary },
 
   textLine: { fontSize: typography.sizes.body, color: colors.sub, lineHeight: 19, marginBottom: 8 },
@@ -645,7 +800,8 @@ const styles = StyleSheet.create({
   radioTitle: { fontSize: 14, fontWeight: typography.weights.semibold, color: colors.text },
   radioSub: { fontSize: 11.5, color: colors.sub, marginTop: 4 },
 
-  input: { height: 46, borderRadius: radius.md, backgroundColor: colors.field, borderWidth: 1, borderColor: colors.border, justifyContent: "center", paddingHorizontal: 14 },
+  inputLabel: { fontSize: typography.sizes.body, fontWeight: typography.weights.semibold, color: colors.text, marginBottom: 6 },
+  input: { minHeight: 46, borderRadius: radius.md, backgroundColor: colors.field, borderWidth: 1, borderColor: colors.border, justifyContent: "center", paddingHorizontal: 14 },
   inputText: { fontSize: typography.sizes.body, color: colors.muted },
   inputLive: { fontSize: typography.sizes.body, color: colors.text, paddingVertical: 0 },
 
@@ -667,6 +823,7 @@ const styles = StyleSheet.create({
   progTrack: { height: 8, borderRadius: 4, backgroundColor: colors.track, marginTop: 8, overflow: "hidden" },
   progFill: { height: 8, borderRadius: 4, backgroundColor: colors.green },
 
+  linkBtn: { minHeight: 44, justifyContent: "center" },
   link: { fontSize: typography.sizes.body, fontWeight: typography.weights.semibold, color: colors.primary, paddingVertical: 4, marginBottom: 4 },
 
   photoCard: { backgroundColor: colors.white, borderRadius: radius.lg, overflow: "hidden", ...shadows.card },
@@ -701,19 +858,15 @@ const styles = StyleSheet.create({
   checkCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" },
   checkTitle: { fontSize: 17, fontWeight: typography.weights.bold, color: colors.text, textAlign: "center" },
 
-  stepper: { height: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  stepper: { minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
   stepperLabel: { fontSize: 14, color: colors.text },
-  stepperRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  stepperRight: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   stepperQty: { fontSize: 15, fontWeight: typography.weights.bold, color: colors.primary },
   stepperBtns: { fontSize: 15, fontWeight: typography.weights.bold, color: colors.primary },
-  stepperBtnsRow: { flexDirection: "row", gap: spacing.md },
+  stepperBtnsRow: { flexDirection: "row" },
+  stepperBtn: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
 
   camera: { height: 340, borderRadius: radius.lg, backgroundColor: colors.dark, padding: 16, gap: spacing.md },
-  cameraPills: { flexDirection: "row", gap: spacing.sm },
-  camPillOn: { backgroundColor: colors.white },
-  camPillOnText: { fontSize: typography.sizes.caption, color: colors.primary, fontWeight: typography.weights.semibold },
-  camPillOff: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.white },
-  camPillOffText: { fontSize: typography.sizes.caption, color: colors.white },
   cameraGuide: { flex: 1, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", borderColor: colors.white },
   cameraHint: { fontSize: typography.sizes.small, color: "#DDDDDD", textAlign: "center" },
   shutterOuter: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.white, alignItems: "center", justifyContent: "center", alignSelf: "center" },

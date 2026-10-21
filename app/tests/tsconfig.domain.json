@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "outDir": "../.tmp-test",
+    "rootDir": "../src",
+    "module": "commonjs",
+    "target": "es2020",
+    "skipLibCheck": true,
+    "noResolve": true
+  },
+  "files": ["../src/lib/domain.js", "../src/data/mock/index.js"]
+}

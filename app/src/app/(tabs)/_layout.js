@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, typography, shadows } from "../../tokens";
 import { go, isAuthScreenPath } from "../../lib/nav";
 import { leerSesion } from "../../lib/sesion";
+import { focoVisible } from "../../lib/a11y";
 
 const ICONS = {
   index: ["home", "home-outline"],
@@ -37,7 +38,10 @@ function TabBar({ state, descriptors, navigation }) {
     nodes.push(
       <Pressable
         key={route.key}
-        style={styles.tab}
+        style={(s) => [styles.tab, focoVisible(s)]}
+        accessibilityRole="tab"
+        accessibilityLabel={title}
+        accessibilityState={{ selected: focused }}
         onPress={() => {
           const ev = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
           if (!focused && !ev.defaultPrevented) navigation.navigate(route.name);
@@ -52,7 +56,14 @@ function TabBar({ state, descriptors, navigation }) {
     // La cámara ocupa el espacio central entre Despensa y Planificar.
     if (route.name === "despensa") {
       nodes.push(
-        <Pressable key="cam" style={styles.camWrap} onPress={() => go("DES-04")} accessibilityLabel="Tomar o subir imagen de insumos">
+        <Pressable
+          key="cam"
+          style={(s) => [styles.camWrap, focoVisible(s)]}
+          onPress={() => go("DES-04")}
+          accessibilityRole="button"
+          accessibilityLabel="Tomar o subir imagen de insumos"
+          accessibilityHint="Abre la cámara para registrar una boleta o una lista de compras"
+        >
           <View style={styles.cam}>
             <Ionicons name="camera" size={22} color={colors.white} />
           </View>
@@ -117,7 +128,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: 8,
   },
-  tab: { flex: 1, alignItems: "center", gap: 2, paddingVertical: 2 },
+  tab: { flex: 1, alignItems: "center", justifyContent: "center", gap: 2, paddingVertical: 2, minHeight: 48 },
   tabLabel: { fontSize: typography.sizes.caption, color: colors.muted },
   tabLabelOn: { color: colors.primary, fontWeight: typography.weights.semibold },
   camWrap: { flex: 1, alignItems: "center", justifyContent: "flex-end" },

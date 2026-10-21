@@ -93,3 +93,16 @@ export function cuadriculaMes(anio, mes0) {
   }
   return celdas;
 }
+
+// Días enteros desde hoy hasta `s` (negativo = ya venció). Usa fechas locales.
+export function diasHasta(s) {
+  return Math.round((deIso(s) - deIso(hoyIso())) / 86400000);
+}
+
+// Texto de vencimiento legible (no depende solo del color: 1.4.1).
+export function textoVencimiento(dias) {
+  if (dias < 0) return dias === -1 ? "Venció ayer" : `Venció hace ${-dias} días`;
+  if (dias === 0) return "Vence hoy";
+  if (dias === 1) return "Vence mañana";
+  return `Vence en ${dias} días`;
+}
