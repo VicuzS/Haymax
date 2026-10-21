@@ -31,10 +31,15 @@ export default function DES_02({ insumo }) {
     );
   }
 
-  const item = data.items.find((p) => p.id === insumo) || data.items[0];
+  // Los IDs de PostgreSQL llegan como número, mientras que los parámetros
+  // de Expo Router llegan como texto; se comparan normalizados para abrir el
+  // insumo que realmente seleccionó el usuario.
+  const item = data.items.find((p) => String(p.id) === String(insumo)) || data.items[0];
   const cant0 = cantidad || String(item.cantidad);
   const uni0 = unidad || item.unidad;
-  const vence0 = vence || item.fechaVencimiento.split("-").reverse().join("/");
+  const vence0 = vence || (item.fechaVencimiento
+    ? item.fechaVencimiento.split("-").reverse().join("/")
+    : "");
 
   const guardar = async () => {
     const n = Number(cant0);

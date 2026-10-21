@@ -11,7 +11,6 @@ import {
   pantryMock,
   mealPlanMock,
   shoppingMock,
-  manualAddsMock,
   lastAddedMock,
   addLastAdded,
   agregarALista,
@@ -25,7 +24,9 @@ import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } f
 
 // — Estado local efímero (compartido por ambos modos) —
 // Pendientes del registro manual (DES-06/07) y últimos agregados (DES-08).
-let pendientesManuales = manualAddsMock.map((m) => ({ ...m }));
+// El formulario manual debe comenzar vacío. Los datos demo no deben aparecer
+// como pendientes cuando el usuario registra un nuevo insumo.
+let pendientesManuales = [];
 let ultimosAgregados = lastAddedMock.map((m) => ({ ...m }));
 let escaneoPendiente = null;
 
