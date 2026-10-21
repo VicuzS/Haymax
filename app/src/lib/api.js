@@ -2,7 +2,7 @@
 // Capa de datos del app (Fase 5).
 //
 // Modo CUENTA (sesión con token JWT): todo va a la API real haymax-api
-// (Express + SQLite) según config.API_URL. Si la API no responde, la pantalla
+// (Express + PostgreSQL) según config.API_URL. Si la API no responde, la pantalla
 // muestra el estado de error con "Reintentar".
 //
 // Todas las operaciones personales requieren una sesión de cuenta válida.
@@ -19,7 +19,6 @@ import {
   ajustarDespensa,
 } from "../data/mock";
 import * as D from "./domain";
-import { hoyIso, lunesDeIso, sumarDiasIso, fechaCorta, DIAS_CORTOS } from "./fechas";
 import { API_URL } from "../config";
 import { router } from "expo-router";
 import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } from "./sesion";
@@ -28,6 +27,7 @@ import { leerSesion, guardarSesion as guardarSesionDispositivo, borrarSesion } f
 // Pendientes del registro manual (DES-06/07) y últimos agregados (DES-08).
 let pendientesManuales = manualAddsMock.map((m) => ({ ...m }));
 let ultimosAgregados = lastAddedMock.map((m) => ({ ...m }));
+let escaneoPendiente = null;
 
 export function getPendientesManuales() {
   return pendientesManuales.map((m) => ({ ...m }));
@@ -35,6 +35,33 @@ export function getPendientesManuales() {
 
 export function getUltimosAgregados() {
   return ultimosAgregados.map((m) => ({ ...m }));
+}
+
+export function getEscaneoPendiente() {
+  return escaneoPendiente
+    ? { ...escaneoPendiente, items: escaneoPendiente.items.map((item) => ({ ...item })) }
+    : null;
+}
+
+export async function analizarImagenDespensa({ base64, mimeType, modo, uri }) {
+  await enCuenta();
+  const resultado = await rf("/ocr/analizar", {
+    method: "POST",
+    body: {
+      imagen_base64: base64,
+      mime_type: mimeType,
+      tipo: modo === "Boleta" ? "boleta" : "lista",
+    },
+  });
+  escaneoPendiente = {
+    tipo: resultado.tipo_documento,
+    uri,
+    items: (resultado.items || []).map((item, index) => ({
+      ...item,
+      id: `OCR-${Date.now()}-${index}`,
+    })),
+  };
+  return getEscaneoPendiente();
 }
 
 // — HTTP hacia haymax-api —
@@ -90,7 +117,7 @@ function aPlan(p, recetas) {
     recetaId: p.receta_id || p.recetaId,
     porciones: p.porciones,
     completado: !!(p.completado || p.cocinado),
-    receta: aReceta(recetas.find((r) => r.id === (p.receta_id || p.recetaId))) || null,
+    receta: aReceta(recetas.find((r) => r.id === (p.receta_id || p.recetaId))) || recetas[0] || null,
   };
 }
 
@@ -117,6 +144,7 @@ function porComprarDe(plan, pantry) {
   });
   return set.size;
 }
+
 function parseCantidad(texto) {
   const m = String(texto == null ? "" : texto).match(/([0-9]+(?:[.,][0-9]+)?)\s*([a-zA-Z]+)?/);
   if (!m) return { cantidad: 1, unidad: "und" };
@@ -160,7 +188,7 @@ export async function getInicio() {
     primerNombre,
     inicial,
     plan,
-    recetaHoy: plan && plan.receta ? plan.receta : rs[0],
+    recetaHoy: plan ? plan.receta : rs[0],
     sugerida: rs[0],
     stats: D.pantryStats(despensa.map(aInsumo)),
     shop: D.shoppingProgress(shopList),
@@ -247,17 +275,10 @@ export async function getPreparar(id) {
 }
 
 export async function getPlanSemana() {
-  return getPlanSemanaDe(lunesDeIso(hoyIso()));
+  return getPlanSemanaDe();
 }
 
-// Igual que getPlanSemana, pero para la semana que empieza en `desde`
-// (un lunes). Permite navegar semanas en el plan con flechas.
 export async function getPlanSemanaDe(desde) {
-  const hoy = hoyIso();
-  const lunes = lunesDeIso(desde);
-  const hasta = sumarDiasIso(lunes, 6);
-  const chips = DIAS_CORTOS.map((lbl, i) => ({ lbl, iso: sumarDiasIso(lunes, i) }));
-
   if (!(await enCuenta())) {
     const plan = mealPlanMock.map((m) => ({ ...m, receta: D.recetaById(m.recetaId) }));
     return {
@@ -265,20 +286,17 @@ export async function getPlanSemanaDe(desde) {
       pantry: [...pantryMock],
       cobertura: D.planCobertura(plan),
       porComprar: porComprarDe(plan, pantryMock),
-      semana: {
-        hoy,
-        desde: lunes,
-        hasta,
-        chips,
-        etiqueta: `Semana del ${fechaCorta(lunes)} al ${fechaCorta(hasta)}`,
-      },
     };
   }
-  const [planes, recetas, despensa] = await Promise.all([
-    rf(`/planes?desde=${lunes}&hasta=${hasta}`),
-    rf("/recetas"),
-    rf("/despensa"),
-  ]);
+  const hasta = desde
+    ? (() => {
+        const fecha = new Date(`${String(desde).slice(0, 10)}T00:00:00`);
+        fecha.setDate(fecha.getDate() + 6);
+        return fecha.toISOString().slice(0, 10);
+      })()
+    : null;
+  const desdeUrl = desde ? `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}` : "";
+  const [planes, recetas, despensa] = await Promise.all([rf("/planes" + desdeUrl), rf("/recetas"), rf("/despensa")]);
   const rs = recetas.map(aReceta);
   const pantry = despensa.map(aInsumo);
   const plan = planes.map((p) => aPlan(p, rs));
@@ -287,13 +305,6 @@ export async function getPlanSemanaDe(desde) {
     pantry,
     cobertura: D.planCobertura(plan),
     porComprar: porComprarDe(plan, pantry),
-    semana: {
-      hoy,
-      desde: lunes,
-      hasta,
-      chips,
-      etiqueta: `Semana del ${fechaCorta(lunes)} al ${fechaCorta(hasta)}`,
-    },
   };
 }
 
@@ -410,10 +421,9 @@ export async function cerrarSesion() {
 // — Escrituras —
 export async function setCompraListo(id, valor) {
   if (await enCuenta()) {
-    // Sin `valor` el servidor alterna el estado; con él hay idempotencia.
     return rf("/compras/" + id, {
       method: "PUT",
-      body: valor == null ? {} : { comprado: !!valor },
+      body: valor == null ? undefined : { comprado: !!valor },
     });
   }
   const i = shoppingMock.findIndex((x) => x.id === id);
@@ -421,124 +431,54 @@ export async function setCompraListo(id, valor) {
   return getCompras();
 }
 
-// Agrega un ítem manual a la lista (sin duplicar por nombre).
-export async function crearItemCompra({ nombre, cantidad = "1", unidad_medida, seccion = "Mercado de abastos" } = {}) {
-  const limpio = String(nombre || "").trim();
-  if (!limpio) throw new Error("Escribe el nombre del ítem.");
-  if (!(await enCuenta())) {
-    const ya = shoppingMock.some((s) => String(s.nombre).toLowerCase() === limpio.toLowerCase());
-    if (!ya) {
-      shoppingMock.push({
-        id: "CL" + (shoppingMock.length + 1),
-        nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
-        seccion,
-        cantidad: String(cantidad || "1"),
-        listo: false,
-      });
-    }
-    return getCompras();
-  }
-  const lista = await rf("/compras");
-  const existe = lista.some(
-    (c) => String(c.nombre).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") ===
-      limpio.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-  );
-  if (existe) throw new Error("Ese ítem ya está en tu lista.");
+export async function agregarCompra({ nombre, cantidad = "1", unidad_medida = "und", seccion = "Mercado de abastos" }) {
+  await enCuenta();
   return rf("/compras", {
     method: "POST",
-    body: {
-      nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
-      cantidad: cantidad != null && String(cantidad).trim() !== "" ? String(cantidad).trim() : "1",
-      unidad_medida,
-      seccion,
-      listo: false,
-    },
+    body: { nombre, cantidad: String(cantidad), unidad_medida, seccion, comprado: false },
   });
 }
 
-// Elimina un ítem de la lista.
+export async function crearItemCompra({ nombre, cantidad = "1", unidad_medida, seccion = "Mercado de abastos" } = {}) {
+  const limpio = String(nombre || "").trim();
+  if (!limpio) throw new Error("Escribe el nombre del ítem.");
+  const existentes = await rf("/compras");
+  const normalizar = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (existentes.some((item) => normalizar(item.nombre) === normalizar(limpio))) {
+    throw new Error("Ese ítem ya está en tu lista.");
+  }
+  return rf("/compras", {
+    method: "POST",
+    body: { nombre: limpio, cantidad: String(cantidad || "1"), unidad_medida, seccion, comprado: false },
+  });
+}
+
 export async function quitarCompra(id) {
-  if (await enCuenta()) {
-    return rf("/compras/" + id, { method: "DELETE" });
-  }
-  const i = shoppingMock.findIndex((x) => x.id === id);
-  if (i >= 0) shoppingMock.splice(i, 1);
-  return getCompras();
+  return eliminarCompra(id);
 }
 
-// Quita de la lista todos los ítems ya marcados (comprados).
 export async function quitarComprados() {
-  if (await enCuenta()) {
-    const items = (await rf("/compras")).filter((c) => c.listo || c.comprado);
-    for (const it of items) {
-      await rf("/compras/" + it.id, { method: "DELETE" });
-    }
-    return { quitados: items.length };
-  }
-  shoppingMock.splice(0, shoppingMock.length, ...shoppingMock.filter((s) => !s.listo));
-  return getCompras();
+  const items = (await rf("/compras")).filter((item) => item.comprado || item.listo);
+  for (const item of items) await eliminarCompra(item.id);
+  return { quitados: items.length };
 }
 
-// Genera la lista de compras a partir del plan de la semana (endpoint P4).
+export async function eliminarCompra(id) {
+  await enCuenta();
+  return rf("/compras/" + encodeURIComponent(id), { method: "DELETE" });
+}
+
+export async function actualizarCompra(id, cambios) {
+  await enCuenta();
+  return rf("/compras/" + encodeURIComponent(id), { method: "PUT", body: cambios });
+}
+
 export async function generarListaCompras(fecha) {
-  if (await enCuenta()) {
-    return rf("/compras/generar", { method: "POST", body: { fecha } });
-  }
-  return { creados: 0 };
-}
-
-// Plan de la semana en un rango ('YYYY-MM-DD' a 'YYYY-MM-DD').
-export async function getPlanesEntre(desde, hasta) {
-  if (desde && hasta) {
-    return rf(`/planes?desde=${desde}&hasta=${hasta}`);
-  }
-  return rf("/planes");
-}
-
-// Crea o actualiza un plato del plan. `fecha` va en formato 'YYYY-MM-DD';
-// si se pasa `dia` ("lunes"…), la API lo resuelve para la semana actual.
-export async function planificarPlato({ recetaId, fecha, dia, comida = "almuerzo", porciones } = {}) {
-  const cuerpo = { comida, porciones };
-  if (fecha) cuerpo.fecha = fecha;
-  else if (dia) cuerpo.dia = dia;
-  if (await enCuenta()) {
-    return rf("/planes", { method: "POST", body: { receta_id: recetaId, ...cuerpo } });
-  }
-  const p = { id: "M" + (mealPlanMock.length + 1), dia: dia || fecha, comida, recetaId, porciones };
-  mealPlanMock.push(p);
-  return p;
-}
-
-// Edita un plato existente del plan (PUT /planes/:id, cambios parciales).
-export async function actualizarPlan(id, { recetaId, fecha, dia, comida, porciones, completado } = {}) {
-  const cuerpo = {};
-  if (recetaId) cuerpo.receta_id = recetaId;
-  if (fecha) cuerpo.fecha = fecha;
-  if (dia && !fecha) cuerpo.dia = dia;
-  if (comida) cuerpo.comida = comida;
-  if (porciones != null) cuerpo.porciones = porciones;
-  if (completado != null) cuerpo.completado = !!completado;
-  if (await enCuenta()) {
-    return rf("/planes/" + id, { method: "PUT", body: cuerpo });
-  }
-  const i = mealPlanMock.findIndex((m) => String(m.id) === String(id));
-  if (i >= 0) mealPlanMock.splice(i, 1, { ...mealPlanMock[i], ...cuerpo });
-  return null;
-}
-
-// Quita un plato del plan.
-export async function quitarPlato(id) {
-  if (await enCuenta()) {
-    return rf("/planes/" + id, { method: "DELETE" });
-  }
-  const i = mealPlanMock.findIndex((m) => String(m.id) === String(id));
-  if (i >= 0) mealPlanMock.splice(i, 1);
-  return null;
-}
-
-// Alias usado por las pantallas del flujo PLA-06..09.
-export async function eliminarPlan(id) {
-  return quitarPlato(id);
+  await enCuenta();
+  return rf("/compras/generar", {
+    method: "POST",
+    body: fecha ? { fecha } : {},
+  });
 }
 
 export async function enviarFaltantesALista(ings) {
@@ -551,15 +491,18 @@ export async function enviarFaltantesALista(ings) {
     String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const existentes = new Set(lista.map((c) => norm(c.nombre)));
   for (const raw of ings) {
-    const limpio = raw.replace(/^[0-9.,]+\s*(g|kg|ml|l|und|unid|atado|docena)?\s*(de\s+)?/i, "").trim();
-    const key = norm(limpio || raw);
+    const texto = String(raw || "").trim();
+    const m = texto.match(/^([0-9]+(?:[.,][0-9]+)?)\s*([^\s]+)?\s*(?:de\s+)?(.+)$/i);
+    const limpio = m ? m[3].trim() : texto;
+    const key = norm(limpio);
     if (!limpio || existentes.has(key)) continue;
     existentes.add(key);
     await rf("/compras", {
       method: "POST",
       body: {
         nombre: limpio.charAt(0).toUpperCase() + limpio.slice(1),
-        cantidad: "1",
+        cantidad: m ? m[1].replace(",", ".") : "1",
+        unidad_medida: m && m[2] ? m[2] : "und",
         seccion: "Mercado de abastos",
         listo: false,
       },
@@ -599,19 +542,54 @@ export async function ajustarAlCocinar(filas) {
   ajustarDespensa(filas);
 }
 
+export async function getPlanesEntre(desde, hasta) {
+  const query = desde && hasta ? `?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}` : "";
+  return rf("/planes" + query);
+}
+
+export async function planificarPlato({ recetaId, fecha, dia, comida = "almuerzo", porciones }) {
+  if (await enCuenta()) {
+    return rf("/planes", {
+      method: "POST",
+      body: { fecha, dia, comida, receta_id: recetaId, porciones },
+    });
+  }
+  const p = { id: "M" + (mealPlanMock.length + 1), dia: dia || fecha, fecha, comida, recetaId, porciones };
+  mealPlanMock.push(p);
+  return p;
+}
+
+export async function actualizarPlan(id, { recetaId, fecha, dia, comida, porciones, completado } = {}) {
+  const body = {};
+  if (recetaId) body.receta_id = recetaId;
+  if (fecha) body.fecha = fecha;
+  else if (dia) body.dia = dia;
+  if (comida) body.comida = comida;
+  if (porciones != null) body.porciones = porciones;
+  if (completado != null) body.completado = !!completado;
+  return rf("/planes/" + encodeURIComponent(id), { method: "PUT", body });
+}
+
+export async function eliminarPlan(id) {
+  return rf("/planes/" + encodeURIComponent(id), { method: "DELETE" });
+}
+
 async function altaEnDespensa(items) {
   let n = 0;
   for (const it of items) {
-    const { cantidad, unidad } = parseCantidad(it.cantidad);
+    const parseada = parseCantidad(it.cantidad);
+    const cantidad = typeof it.cantidad === "number" ? it.cantidad : parseada.cantidad;
+    const unidad = it.unidad || it.unidad_medida || parseada.unidad;
     await rf("/despensa", {
       method: "POST",
       body: {
         id: it.id || "PX" + Date.now() + "-" + n++,
         nombre: it.nombre,
-        categoria: "Secos",
+        categoria: it.categoria || "Otros",
         cantidad,
         unidad,
-        estado: "ok",
+        fecha_vencimiento: it.fecha_vencimiento || null,
+        ubicacion: it.ubicacion || "Despensa",
       },
     });
   }
@@ -624,6 +602,13 @@ export async function agregarUltimos(items) {
     addLastAdded(items);
   }
   ultimosAgregados = items.map((m) => ({ ...m }));
+}
+
+export async function confirmarEscaneo(items) {
+  await enCuenta();
+  await altaEnDespensa(items);
+  ultimosAgregados = items.map((item) => ({ ...item }));
+  escaneoPendiente = null;
 }
 
 export async function agregarManualInsumo(item) {
